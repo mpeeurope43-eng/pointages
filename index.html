@@ -1074,11 +1074,12 @@ function cancelChrono(){
 // Sauvegarder état chrono avant fermeture/veille
 window.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='hidden'&&isRunning){
+    const _tv=_parseTaskVal(document.getElementById('cp-task').value);
     W('mpe4-chrono-state',{startTs:timerStart,pauseAccum,startStr:sessionStartStr,
       proj:document.getElementById('cp-proj').value,
-      wbs:document.getElementById('cp-wbs').value,
-      task:document.getElementById('cp-task').value,
-      taskNum:getTaskNum(document.getElementById('cp-proj').value,document.getElementById('cp-wbs').value,document.getElementById('cp-task').value),
+      wbs:_tv.wbs,
+      task:_tv.task,
+      taskNum:getTaskNum(document.getElementById('cp-proj').value,_tv.wbs,_tv.task),
       desc:document.getElementById('cp-desc').value,
       date:todayStr()});
   } else if(document.visibilityState==='visible'){
@@ -1493,12 +1494,14 @@ function setMode(m){
 }
 function startTimer(){
   if(!currentUser){alert('Connectez-vous.');return}
-  if(!document.getElementById('cp-proj').value){alert('Choisissez un projet.');return}
-  if(!document.getElementById('cp-wbs').value){alert('Choisissez un WBS.');return}
-  if(!document.getElementById('cp-task').value){alert('Choisissez une tâche N3.');return}
+  const proj=document.getElementById('cp-proj').value;
+  const taskVal=document.getElementById('cp-task').value;
+  const {wbs,task}=_parseTaskVal(taskVal);
+  if(!proj){alert('Choisissez un projet.');return}
+  if(!taskVal){alert('Choisissez une tâche.');return}
   isRunning=true;isPaused=false;timerStart=Date.now();pauseAccum=0;timerMs=0;
   sessionStartStr=nowStr();
-  ['cp-proj','cp-wbs','cp-task'].forEach(id=>document.getElementById(id).disabled=true);
+  ['cp-proj','cp-task'].forEach(id=>document.getElementById(id).disabled=true);
   timerInterval=setInterval(tickTimer,500);
   renderTimerUI();
 }
@@ -1513,7 +1516,7 @@ function stopTimer(){
   clearInterval(timerInterval);
   const ms=isPaused?(Date.now()-timerStart-pauseAccum-(Date.now()-pauseStart)):(Date.now()-timerStart-pauseAccum);
   isRunning=false;isPaused=false;
-  ['cp-proj','cp-wbs','cp-task'].forEach(id=>document.getElementById(id).disabled=false);
+  ['cp-proj','cp-task'].forEach(id=>document.getElementById(id).disabled=false);
   localStorage.removeItem('mpe4-chrono-state');
   const _tv=_parseTaskVal(document.getElementById('cp-task').value);
   saveEntry({project:document.getElementById('cp-proj').value,wbs:_tv.wbs,task:_tv.task,taskNum:getTaskNum(document.getElementById('cp-proj').value,_tv.wbs,_tv.task),desc:document.getElementById('cp-desc').value.trim(),date:todayStr(),start:sessionStartStr,end:nowStr(),ms:Math.max(ms,0),mode:'chrono'});
