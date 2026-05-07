@@ -314,12 +314,11 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       <div id="h35-counter" style="display:none"></div>
       <div class="user-pill" style="display:flex;align-items:center;gap:6px;padding:3px 8px;background:var(--surface2);border-radius:20px;border:0.5px solid var(--border)">
         <div class="user-dot" id="hdr-dot">?</div>
-        <select id="main-user-sel" onchange="switchUser(this.value)" style="border:none;background:transparent;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer;font-family:inherit;max-width:140px;outline:none"></select>
-      </div>
-        <div>
-          <div class="user-name" id="hdr-name">—</div>
-          <div class="user-type" id="hdr-type"></div>
+        <div style="display:flex;flex-direction:column;line-height:1.2">
+          <span id="hdr-name" style="font-size:12px;font-weight:600;color:var(--ink)">—</span>
+          <span id="hdr-type" style="font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace"></span>
         </div>
+        <button onclick="openUserModal()" title="Changer de compte" style="margin-left:4px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 6px;cursor:pointer;font-family:inherit;transition:.15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">⇄</button>
       </div>
     </div>
   </div>
@@ -379,10 +378,10 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
           <select class="n2-sel" id="cp-wbs" onchange="onN2Change('c')"><option value="">—</option></select>
         </div>
       </div>
-      <div class="n3-wrap" id="cp-n3w">
-        <div class="n-label" style="margin:10px 0 5px;padding-left:40px">③ Tâche (N3)</div>
-        <div class="n3-conn"><div class="n3-vline"></div>
-          <select class="n3-sel" id="cp-task" onchange="_syncWbs('c');updateChrono()"><option value="">—</option></select>
+      <div class="n2-wrap" id="cp-n3w">
+        <div class="n-label" style="margin:10px 0 5px;padding-left:24px">② WBS · Tâche</div>
+        <div class="n2-conn"><div class="n2-vline"></div>
+          <select class="n2-sel" id="cp-task" onchange="_syncWbs('c');updateChrono()"><option value="">— Sélectionner une tâche —</option></select>
         </div>
       </div>
       <div class="field-group" style="margin-top:10px">
@@ -404,10 +403,10 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
           <select class="n2-sel" id="rp-wbs" style="background:#fff" onchange="onN2Change('r')"><option value="">—</option></select>
         </div>
       </div>
-      <div class="n3-wrap" id="rp-n3w">
-        <div class="n-label" style="margin:10px 0 5px;padding-left:40px">③ Tâche (N3)</div>
-        <div class="n3-conn"><div class="n3-vline"></div>
-          <select class="n3-sel" id="rp-task" style="background:#fff" onchange="_syncWbs('r')"><option value="">—</option></select>
+      <div class="n2-wrap" id="rp-n3w">
+        <div class="n-label" style="margin:10px 0 5px;padding-left:24px">② WBS · Tâche</div>
+        <div class="n2-conn"><div class="n2-vline"></div>
+          <select class="n2-sel" id="rp-task" style="background:#fff" onchange="_syncWbs('r')"><option value="">— Sélectionner une tâche —</option></select>
         </div>
       </div>
       <div style="height:8px"></div>
@@ -442,10 +441,10 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
           <select class="n2-sel" id="mp-wbs" style="background:#fff" onchange="onN2Change('m')"><option value="">—</option></select>
         </div>
       </div>
-      <div class="n3-wrap" id="mp-n3w">
-        <div class="n-label" style="margin:10px 0 5px;padding-left:40px">③ Tâche (N3)</div>
-        <div class="n3-conn"><div class="n3-vline"></div>
-          <select class="n3-sel" id="mp-task" style="background:#fff" onchange="_syncWbs('m')"><option value="">—</option></select>
+      <div class="n2-wrap" id="mp-n3w">
+        <div class="n-label" style="margin:10px 0 5px;padding-left:24px">② WBS · Tâche</div>
+        <div class="n2-conn"><div class="n2-vline"></div>
+          <select class="n2-sel" id="mp-task" style="background:#fff" onchange="_syncWbs('m')"><option value="">— Sélectionner une tâche —</option></select>
         </div>
       </div>
       <div style="height:8px"></div>
@@ -690,15 +689,6 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     </div>
 
 
-    <div class="card">
-      <div class="card-title">🔑 Mot de passe</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input class="field" type="password" id="my-pwd-1" placeholder="Nouveau mot de passe" style="flex:1">
-        <input class="field" type="password" id="my-pwd-2" placeholder="Confirmer" style="flex:1">
-        <button class="btn btn-primary" onclick="changeMyPwd()">Changer</button>
-      </div>
-      <div id="my-pwd-msg" style="font-size:12px;margin-top:8px;display:none"></div>
-    </div>
     <div class="card">
       <div class="card-title">📅 Présences équipe</div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
@@ -995,7 +985,9 @@ function populateLockUsers(){
   const cards=document.getElementById('lock-user-cards');if(!cards)return;
   const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c'};
   const TL={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Admin'};
-  cards.innerHTML=users.map(u=>`<div onclick="lockSelectUser('${u.id}')" data-uid="${u.id}"
+  // N'afficher que les utilisateurs actifs sur la page d'accueil
+  const activeUsers=users.filter(u=>u.active!==false);
+  cards.innerHTML=activeUsers.map(u=>`<div onclick="lockSelectUser('${u.id}')" data-uid="${u.id}"
     style="width:128px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;cursor:pointer;transition:all .2s;user-select:none"
     onmouseover="if(this.dataset.uid!=='${u.id}'||'${u.id}'!==_lockSelectedUid){this.style.background='rgba(255,255,255,.08)';this.style.borderColor='rgba(201,79,12,.4)';this.style.transform='translateY(-2px)'}"
     onmouseout="if('${u.id}'!==_lockSelectedUid){this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.08)';this.style.transform='none'}">
@@ -1411,14 +1403,15 @@ function onN1Change(prefix){
   };
   const i=ids[prefix];
   const projCode=document.getElementById(i.proj).value;
-  // Toujours masquer N2
+  // Masquer N2 (WBS intermédiaire)
   document.getElementById(i.n2w).style.display='none';
-  // N3 direct
-  if(projCode){
-    document.getElementById(i.n3w).style.display='block';
+  // N3 direct — utiliser block pour afficher
+  const n3el=document.getElementById(i.n3w);
+  if(projCode&&n3el){
+    n3el.style.display='block';
     populateTaskSelDirect(prefix, projCode);
-  } else {
-    document.getElementById(i.n3w).style.display='none';
+  } else if(n3el){
+    n3el.style.display='none';
   }
   if(prefix==='c')updateChrono();
 }
@@ -2243,26 +2236,83 @@ function addUser(){
   if(!name)return;
   const id='u'+Date.now();
   const pwd=name.toLowerCase().replace(/\s+/g,'');
-  users.push({id,name,type,rate:type==='horaire'?100:120,pwd});
+  users.push({id,name,type,rate:type==='horaire'?100:120,pwd,active:true});
   W('mpe4-users',users);
   document.getElementById('nu-name').value='';
-  renderAdminUserTable();
-  populateLockUsers();
+  renderAdminUserTable();populateLockUsers();
 }
+
 function renderAdminUserTable(){
   const el=document.getElementById('admin-user-table');if(!el)return;
+  const TYPE_LABELS={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Admin'};
   el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
-    <tr style="background:var(--surface2)"><th style="padding:6px;text-align:left">Nom</th><th>Type</th><th>Mot de passe</th><th></th></tr>
-    ${users.map(u=>`<tr style="border-top:1px solid var(--border)">
-      <td style="padding:6px;font-weight:600">${u.name}</td>
-      <td style="text-align:center"><span class="badge badge-${u.type}">${u.type}</span></td>
-      <td style="text-align:center;font-family:monospace;font-size:11px;color:var(--muted)">${u.pwd||'—'}</td>
-      <td style="text-align:right"><button class="cfg-del" onclick="deleteUser('${u.id}')">✕</button></td>
+    <tr style="background:var(--surface2)">
+      <th style="padding:6px;text-align:left">Nom</th>
+      <th style="padding:6px;text-align:center">Type</th>
+      <th style="padding:6px;text-align:center">Mot de passe</th>
+      <th style="padding:6px;text-align:center">Statut</th>
+      <th style="padding:6px;text-align:right">Actions</th>
+    </tr>
+    ${users.map(u=>`<tr style="border-top:1px solid var(--border);opacity:${u.active===false?'.5':'1'}">
+      <td style="padding:6px">
+        <input value="${u.name}" onblur="editUserField('${u.id}','name',this.value)"
+          style="border:none;background:transparent;font-weight:600;font-size:12px;font-family:inherit;width:140px;outline:none;border-bottom:1px dashed var(--border);color:${u.active===false?'var(--muted)':'var(--ink)'}">
+      </td>
+      <td style="text-align:center;padding:4px">
+        <select onchange="editUserField('${u.id}','type',this.value)"
+          style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;background:var(--bg);font-family:inherit;color:var(--ink)">
+          <option value="cadre"${u.type==='cadre'?' selected':''}>Cadre IC</option>
+          <option value="horaire"${u.type==='horaire'?' selected':''}>Horaire ETAM</option>
+          <option value="admin"${u.type==='admin'?' selected':''}>Admin</option>
+        </select>
+      </td>
+      <td style="text-align:center;padding:4px">
+        <input type="text" value="${u.pwd||''}" onblur="editUserField('${u.id}','pwd',this.value)"
+          style="font-size:11px;font-family:monospace;border:1px solid var(--border);border-radius:4px;padding:2px 6px;width:130px;background:var(--bg);color:var(--muted)">
+      </td>
+      <td style="text-align:center;padding:4px">
+        <button onclick="toggleUserActive('${u.id}')"
+          style="font-size:10px;padding:3px 10px;border-radius:10px;border:1px solid ${u.active===false?'var(--muted)':'var(--green)'};background:${u.active===false?'var(--surface2)':'var(--green-bg)'};color:${u.active===false?'var(--muted)':'var(--green)'};cursor:pointer;font-weight:600;font-family:inherit">
+          ${u.active===false?'⏸ Inactif':'✓ Actif'}
+        </button>
+      </td>
+      <td style="text-align:right;padding:4px">
+        <button class="cfg-del" onclick="deleteUser('${u.id}')" title="Supprimer définitivement">✕</button>
+      </td>
     </tr>`).join('')}
   </table>`;
 }
+
+function editUserField(id, field, value){
+  value=value.trim();
+  if(!value)return;
+  const idx=users.findIndex(u=>u.id===id);if(idx<0)return;
+  users[idx]={...users[idx],[field]:value};
+  // Si changement de type → update rate
+  if(field==='type')users[idx].rate=value==='horaire'?100:120;
+  W('mpe4-users',users);
+  // Si c'est l'utilisateur courant → update UI
+  if(currentUser&&currentUser.id===id){currentUser=users[idx];renderUserUI();}
+  populateLockUsers();
+  renderAdminUserTable();
+}
+
+function toggleUserActive(id){
+  const idx=users.findIndex(u=>u.id===id);if(idx<0)return;
+  const isActive=users[idx].active!==false;
+  if(isActive){
+    if(!confirm(`Désactiver ${users[idx].name} ?\nIl/elle n'apparaîtra plus sur la page de connexion mais son historique est conservé.`))return;
+    users[idx].active=false;
+  } else {
+    users[idx].active=true;
+  }
+  W('mpe4-users',users);
+  renderAdminUserTable();populateLockUsers();
+}
+
 function deleteUser(id){
-  if(!confirm('Supprimer cet utilisateur ?'))return;
+  const u=users.find(x=>x.id===id);
+  if(!confirm(`Supprimer définitivement ${u?.name} ?\n⚠ Pour conserver l'historique, préférez "Désactiver" plutôt que supprimer.`))return;
   users=users.filter(u=>u.id!==id);
   W('mpe4-users',users);
   renderAdminUserTable();populateLockUsers();
@@ -2275,7 +2325,7 @@ function renderAdminPresences(){
   const el=document.getElementById('admin-pres-table');if(!el)return;
   let html=`<table style="border-collapse:collapse;font-size:11px;min-width:600px">
     <tr style="background:var(--surface2)"><th style="padding:4px 6px;border:1px solid var(--border)">Jour</th>`;
-  users.forEach(u=>{html+=`<th style="padding:4px 6px;border:1px solid var(--border)">${u.name.split(' ')[0]}</th>`;});
+  users.forEach(u=>{html+=`<th style="padding:4px 6px;border:1px solid var(--border);${u.active===false?'opacity:.5;color:var(--muted)':''}">${u.name.split(' ')[0]}${u.active===false?' ⏸':''}</th>`;});
   html+=`</tr>`;
   for(let d=1;d<=dim;d++){
     const date=new Date(y,m-1,d);const dow=date.getDay();
