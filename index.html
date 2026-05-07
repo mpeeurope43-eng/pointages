@@ -778,75 +778,85 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 
 
 
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyB1iBJ9t805jn2Lf-xHvkwRFQMgHbO7zvA",
-  authDomain: "mpe-pointages.firebaseapp.com",
-  projectId: "mpe-pointages",
-  storageBucket: "mpe-pointages.firebasestorage.app",
-  messagingSenderId: "1067630602097",
-  appId: "1:1067630602097:web:185517af6ebd1e288838d0"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const DATA_REF = db.collection("mpe-europe").doc("data");
+// Firebase : désactivé en local (file://), actif uniquement sur serveur web
+const _IS_LOCAL = window.location.protocol === 'file:';
 
-window.saveToFirebase = async function(){
-  try{
-    const data={
-      entries:   JSON.parse(localStorage.getItem('mpe4-entries')   ||'[]'),
-      presences: JSON.parse(localStorage.getItem('mpe4-presences') ||'{}'),
-      projects:  JSON.parse(localStorage.getItem('mpe4-projects')  ||'[]'),
-      users:     JSON.parse(localStorage.getItem('mpe4-users')     ||'[]'),
-      wbs:       JSON.parse(localStorage.getItem('mpe4-wbs')       ||'[]'),
-      tasks:     JSON.parse(localStorage.getItem('mpe4-tasks')     ||'[]'),
-      updatedAt: new Date().toISOString()
-    };
-    await DATA_REF.set(data);
-    console.log('✅ Sauvegardé sur Firebase');
-  }catch(e){console.warn('⚠️ Erreur save Firebase:',e.message);}
-};
-
+window.saveToFirebase = async function(){ /* no-op en local */ };
 async function loadFromFirebase(){
-  try{
-    const snap = await DATA_REF.get();
-    if(snap.exists){
-      const data = snap.data();
-      if(data.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(data.entries));
-      if(data.presences) localStorage.setItem('mpe4-presences', JSON.stringify(data.presences));
-      if(data.projects)  localStorage.setItem('mpe4-projects',  JSON.stringify(data.projects));
-      if(data.users)     localStorage.setItem('mpe4-users',     JSON.stringify(data.users));
-      if(data.wbs)       localStorage.setItem('mpe4-wbs',       JSON.stringify(data.wbs));
-      if(data.tasks)     localStorage.setItem('mpe4-tasks',     JSON.stringify(data.tasks));
-      console.log('✅ Données chargées depuis Firebase');
-    } else {
-      console.log('ℹ️ Première utilisation - base vide');
-    }
-    if(window._mpeReload) window._mpeReload();
-  }catch(e){
-    console.warn('⚠️ Firebase non disponible:',e.message);
-    if(window._mpeReload) window._mpeReload();
-  }
+  if(window._mpeReload) window._mpeReload();
 }
 
-// Écouter les changements en temps réel
-DATA_REF.onSnapshot((snap)=>{
-  if(snap.exists && window._mpeReload){
-    const data=snap.data();
-    if(data.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(data.entries));
-    if(data.presences) localStorage.setItem('mpe4-presences', JSON.stringify(data.presences));
-    if(data.projects)  localStorage.setItem('mpe4-projects',  JSON.stringify(data.projects));
-    if(data.users)     localStorage.setItem('mpe4-users',     JSON.stringify(data.users));
-    if(data.wbs)       localStorage.setItem('mpe4-wbs',       JSON.stringify(data.wbs));
-    if(data.tasks)     localStorage.setItem('mpe4-tasks',     JSON.stringify(data.tasks));
-    window._mpeReload();
-  }
-});
+if(!_IS_LOCAL){
+  // Chargement Firebase uniquement en ligne
+  const _fb1 = document.createElement('script');
+  _fb1.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
+  _fb1.onload = () => {
+    const _fb2 = document.createElement('script');
+    _fb2.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
+    _fb2.onload = () => {
+      try{
+        const firebaseConfig = {
+          apiKey: "AIzaSyB1iBJ9t805jn2Lf-xHvkwRFQMgHbO7zvA",
+          authDomain: "mpe-pointages.firebaseapp.com",
+          projectId: "mpe-pointages",
+          storageBucket: "mpe-pointages.firebasestorage.app",
+          messagingSenderId: "1067630602097",
+          appId: "1:1067630602097:web:185517af6ebd1e288838d0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const DATA_REF = db.collection("mpe-europe").doc("data");
 
-// Charger au démarrage
-loadFromFirebase();
+        window.saveToFirebase = async function(){
+          try{
+            const data={
+              entries:   JSON.parse(localStorage.getItem('mpe4-entries')   ||'[]'),
+              presences: JSON.parse(localStorage.getItem('mpe4-presences') ||'{}'),
+              projects:  JSON.parse(localStorage.getItem('mpe4-projects')  ||'[]'),
+              users:     JSON.parse(localStorage.getItem('mpe4-users')     ||'[]'),
+              wbs:       JSON.parse(localStorage.getItem('mpe4-wbs')       ||'[]'),
+              tasks:     JSON.parse(localStorage.getItem('mpe4-tasks')     ||'[]'),
+              updatedAt: new Date().toISOString()
+            };
+            await DATA_REF.set(data);
+            console.log('✅ Firebase sync');
+          }catch(e){console.warn('⚠️ Firebase save:',e.message);}
+        };
+
+        DATA_REF.get().then(snap=>{
+          if(snap.exists){
+            const d=snap.data();
+            if(d.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(d.entries));
+            if(d.presences) localStorage.setItem('mpe4-presences', JSON.stringify(d.presences));
+            if(d.projects)  localStorage.setItem('mpe4-projects',  JSON.stringify(d.projects));
+            if(d.users)     localStorage.setItem('mpe4-users',     JSON.stringify(d.users));
+            if(d.wbs)       localStorage.setItem('mpe4-wbs',       JSON.stringify(d.wbs));
+            if(d.tasks)     localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
+          }
+          if(window._mpeReload) window._mpeReload();
+        }).catch(e=>{console.warn('⚠️ Firebase load:',e.message);if(window._mpeReload)window._mpeReload();});
+
+        DATA_REF.onSnapshot(snap=>{
+          if(snap.exists&&window._mpeReload){
+            const d=snap.data();
+            if(d.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(d.entries));
+            if(d.presences) localStorage.setItem('mpe4-presences', JSON.stringify(d.presences));
+            if(d.projects)  localStorage.setItem('mpe4-projects',  JSON.stringify(d.projects));
+            if(d.users)     localStorage.setItem('mpe4-users',     JSON.stringify(d.users));
+            if(d.wbs)       localStorage.setItem('mpe4-wbs',       JSON.stringify(d.wbs));
+            if(d.tasks)     localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
+            window._mpeReload();
+          }
+        });
+      }catch(e){console.warn('Firebase init err:',e);if(window._mpeReload)window._mpeReload();}
+    };
+    document.head.appendChild(_fb2);
+  };
+  document.head.appendChild(_fb1);
+} else {
+  console.log('📁 Mode local — Firebase désactivé, données en localStorage');
+}
 </script>
 
 <script>
@@ -971,10 +981,9 @@ let isRunning=false,isPaused=false,timerStart=null,pauseAccum=0,pauseStart=null,
 window.addEventListener('DOMContentLoaded',()=>{
   try{const sw=localStorage.getItem('mpe4-wbs');if(sw){const wb=JSON.parse(sw);if(wb.length&&wb[0].code.startsWith('-')){localStorage.removeItem('mpe4-wbs');wbsList=DEF_WBS;}}}catch(e){}
   populateLockUsers();
-  if(!currentUser&&users.length){switchUser(users[0].id);}
-  // Check chrono sauvegardé
+  // Ne pas auto-connecter — on veut la page d'accueil
   const savedChrono=S('mpe4-chrono-state');
-  if(savedChrono){showChronoRecover(savedChrono);}
+  if(savedChrono&&currentUser){showChronoRecover(savedChrono);}
 });
 
 let _lockSelectedUid=null;
@@ -1033,18 +1042,17 @@ function doUnlock(){
     return;
   }
   document.getElementById('lock-err').style.display='none';
+  const ls=document.getElementById('lock-screen');
+  if(ls){ls.style.transition='opacity .3s';ls.style.opacity='0';setTimeout(()=>{ls.style.display='none';ls.style.opacity='1';},300);}
   switchUser(uid);
 }
 
-// Changer de user = retour lock screen
+// Changer de user = retour page d'accueil
 function openUserModal(){
-  document.getElementById('lock-screen').classList.remove('hidden');
-  document.getElementById('main-app').style.display='none';
-  document.getElementById('lock-pwd').value='';
-  document.getElementById('lock-err').style.display='none';
+  lockResetSelection();
   populateLockUsers();
-  // Pré-sélectionner l'user actuel
-  if(currentUser)document.getElementById('lock-user-select').value=currentUser.id;
+  const ls=document.getElementById('lock-screen');
+  if(ls){ls.style.display='flex';ls.style.opacity='0';setTimeout(()=>{ls.style.transition='opacity .3s';ls.style.opacity='1';},10);}
 }
 
 // ════════════════════════ CHRONO RECOVERY ════════════════════════
