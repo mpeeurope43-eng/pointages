@@ -1473,7 +1473,7 @@ function calcHoraireTotal(pres){
   if(!pres.arrive||!pres.depart)return '';
   // N'afficher que si c'est du temps de travail (ou pas de statut défini)
   if(pres.abs&&!['present','tt','dep'].includes(pres.abs))return '';
-  const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):0,diff=d-a-p;
+  const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):timeToMs('00:45'),diff=d-a-p;
   if(diff<=0)return '';
   const h=Math.floor(diff/3600000),mn=Math.floor((diff%3600000)/60000);
   return `${h}h${String(mn).padStart(2,'0')}`;
@@ -1984,7 +1984,7 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
       // Journée complète
       const s=pr.abs||'';
       if(s&&!isWork(s))return 0;
-      const a=toMin(pr.arrive),d=toMin(pr.depart),p=toMin(pr.pause||'');
+      const a=toMin(pr.arrive),d=toMin(pr.depart),p=toMin(pr.pause||'00:45');
       return(a&&d&&d>a)?Math.max(0,d-a-p):0;
     };
     // Cumul semaine contenant le jour di (index 1..dim)
@@ -2052,7 +2052,9 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
           if(isWork(mS)){arr1=pres.matin_arrive||'';dep1=pres.matin_depart||'';if(mS!=='present'){const cz=SC[mS];const tz=ST[mS];if(cz){cA1=`background:${cz};color:${tz};`;cD1=cA1;}}}
           if(isWork(apS)){arr2=pres.apmidi_arrive||'';dep2=pres.apmidi_depart||'';if(apS!=='present'){const cz=SC[apS];const tz=ST[apS];if(cz){cA2=`background:${cz};color:${tz};`;cD2=cA2;}}}
         } else {
-          arr1=pres.arrive||'';dep2=pres.depart||'';pause1=pres.pause||'';
+          arr1=pres.arrive||'';dep2=pres.depart||'';
+          // Pause : utilise la valeur stockée OU '00:45' par défaut (comme l'app)
+          pause1=pres.pause||'00:45';
         }
       }
 
