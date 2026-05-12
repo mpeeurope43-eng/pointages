@@ -975,6 +975,13 @@ const DEF_TASKS=[
 // ════════════════════════ STATE ════════════════════════
 const S=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}};
 const W=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+// Auto-sync Firebase après chaque sauvegarde (debounce 1.5s)
+let _fbSyncTimer=null;
+const _autoSync=()=>{
+  clearTimeout(_fbSyncTimer);
+  _fbSyncTimer=setTimeout(()=>saveToFirebase(),1500);
+};
+const WS=(k,v)=>{W(k,v);_autoSync();};
 
 let users=S('mpe4-users')||DEF_USERS;
 let wbsList=S('mpe4-wbs')||DEF_WBS;
@@ -1321,7 +1328,7 @@ function setCadreSlot(key, half, val, ds){
   if(val==='absent_open') val='absent'; // ouvre le select motif
   if(!presences[key]) presences[key]={};
   presences[key][half] = val;
-  W('mpe4-presences', presences);
+  WS('mpe4-presences', presences);
   renderPresences();
   setTimeout(renderMiniCal, 50);
 }
@@ -1434,23 +1441,23 @@ function setHoraireHalf(key,slot,action,absSlot,ds,absCode){
       }
     }
   }
-  W('mpe4-presences',presences);renderPresences();setTimeout(renderMiniCal,50);
+  WS('mpe4-presences',presences);renderPresences();setTimeout(renderMiniCal,50);
 }
 
 
 
 function setPresence(key,slot,val,ds){if(!presences[key])presences[key]={};presences[key][slot]=val;
-  setTimeout(renderMiniCal,50);W('mpe4-presences',presences);renderPresences();}
-function setHoraireAbs(key,code,ds){if(!presences[key])presences[key]={};presences[key].abs=code;if(code&&code!=='dep'){presences[key].arrive='';presences[key].depart='';}W('mpe4-presences',presences);renderPresences();}
+  setTimeout(renderMiniCal,50);WS('mpe4-presences',presences);renderPresences();}
+function setHoraireAbs(key,code,ds){if(!presences[key])presences[key]={};presences[key].abs=code;if(code&&code!=='dep'){presences[key].arrive='';presences[key].depart='';}WS('mpe4-presences',presences);renderPresences();}
 function setHoraireField(key,field,val,ds){
   if(!presences[key])presences[key]={};
   presences[key][field]=val;
-  W('mpe4-presences',presences);
+  WS('mpe4-presences',presences);
   // Rafraîchir l'affichage du total quand on saisit une heure
   if(field.match(/arrive|depart|pause/)) renderPresences();
 }
-function setArriveNow(key,ds){if(!presences[key])presences[key]={};presences[key].arrive=nowStr();W('mpe4-presences',presences);renderPresences();}
-function setDepartNow(key,ds){if(!presences[key])presences[key]={};presences[key].depart=nowStr();W('mpe4-presences',presences);renderPresences();}
+function setArriveNow(key,ds){if(!presences[key])presences[key]={};presences[key].arrive=nowStr();WS('mpe4-presences',presences);renderPresences();}
+function setDepartNow(key,ds){if(!presences[key])presences[key]={};presences[key].depart=nowStr();WS('mpe4-presences',presences);renderPresences();}
 function calcHoraireTotal(pres){
   if(!pres)return '';
   function slotMs(arr,dep){
@@ -1735,14 +1742,14 @@ function getTaskNum(proj, wbs, taskLabel){
 function saveEntry(e){
   if(!currentUser)return;
   entries.unshift({id:Date.now(),userId:currentUser.id,user:currentUser.name,...e});
-  W('mpe4-entries',entries);
+  WS('mpe4-entries',entries);
   renderTodayList();
   update35hCounter();
 }
 function deleteEntry(id){
   if(!confirm('Supprimer cette saisie ?'))return;
   entries=entries.filter(e=>e.id!==id);
-  W('mpe4-entries',entries);
+  WS('mpe4-entries',entries);
   renderTodayList();
   update35hCounter();
   if(document.getElementById('page-journal').classList.contains('active'))renderCalendar();
@@ -2481,7 +2488,7 @@ function changeAdminPwd(){
   const p2=document.getElementById('new-pwd-2').value;
   const msg=document.getElementById('pwd-change-msg');
   if(!p1||p1!==p2){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='Les mots de passe ne correspondent pas.';return;}
-  W('mpe4-admin-pwd',p1);msg.style.display='block';msg.style.color='var(--green)';msg.textContent='Mot de passe admin modifié ✓';
+  WS('mpe4-admin-pwd',p1);msg.style.display='block';msg.style.color='var(--green)';msg.textContent='Mot de passe admin modifié ✓';
 }
 function changeMyPwd(){
   if(!currentUser)return;
@@ -2505,7 +2512,7 @@ function changeMyPwd(){
   if(p1.length<4){show('Mot de passe trop court (4 caractères min).',false);return;}
   currentUser.pwd=p1;
   users=users.map(u=>u.id===currentUser.id?currentUser:u);
-  W('mpe4-users',users);saveToFirebase();
+  WS('mpe4-users',users);saveToFirebase();
   document.getElementById('my-pwd-current').value='';
   document.getElementById('my-pwd-1').value='';
   document.getElementById('my-pwd-2').value='';
@@ -2518,7 +2525,7 @@ function addUser(){
   const id='u'+Date.now();
   const pwd=name.toLowerCase().replace(/\s+/g,'');
   users.push({id,name,type,rate:type==='horaire'?100:120,pwd,active:true});
-  W('mpe4-users',users);
+  WS('mpe4-users',users);
   document.getElementById('nu-name').value='';
   renderAdminUserTable();populateLockUsers();
 }
@@ -2571,7 +2578,7 @@ function editUserField(id, field, value){
   users[idx]={...users[idx],[field]:value};
   // Si changement de type → update rate
   if(field==='type')users[idx].rate=value==='horaire'?100:120;
-  W('mpe4-users',users);
+  WS('mpe4-users',users);
   // Si c'est l'utilisateur courant → update UI
   if(currentUser&&currentUser.id===id){currentUser=users[idx];renderUserUI();}
   populateLockUsers();
@@ -2587,7 +2594,7 @@ function toggleUserActive(id){
   } else {
     users[idx].active=true;
   }
-  W('mpe4-users',users);
+  WS('mpe4-users',users);
   renderAdminUserTable();populateLockUsers();
 }
 
@@ -2595,7 +2602,7 @@ function deleteUser(id){
   const u=users.find(x=>x.id===id);
   if(!confirm(`Supprimer définitivement ${u?.name} ?\n⚠ Pour conserver l'historique, préférez "Désactiver" plutôt que supprimer.`))return;
   users=users.filter(u=>u.id!==id);
-  W('mpe4-users',users);
+  WS('mpe4-users',users);
   renderAdminUserTable();populateLockUsers();
 }
 function renderAdminPresences(){
@@ -2637,11 +2644,11 @@ function renderAdminPointage(){
 }
 function clearEntries(confirm_){
   if(!confirm('Effacer TOUT le pointage ? Cette action est irréversible.'))return;
-  entries=[];W('mpe4-entries',entries);renderTodayList();
+  entries=[];WS('mpe4-entries',entries);renderTodayList();
 }
 function clearPresencesAll(){
   if(!confirm('Effacer TOUTES les présences ? Cette action est irréversible.'))return;
-  presences={};W('mpe4-presences',presences);renderPresences();
+  presences={};WS('mpe4-presences',presences);renderPresences();
 }
 
 // ════════ PROJETS ════════
@@ -2713,12 +2720,12 @@ function renderProjList(){
 }
 function changeProjetStatus(code,status){
   projects=projects.map(p=>p.code===code?{...p,status}:p);
-  W('mpe4-projects',projects);renderProjList();populateProjectSelects();
+  WS('mpe4-projects',projects);renderProjList();populateProjectSelects();
 }
 function deleteProject(code){
   if(!confirm(`Supprimer le projet ${code} ?`))return;
   projects=projects.filter(p=>p.code!==code);
-  W('mpe4-projects',projects);renderProjList();populateProjectSelects();
+  WS('mpe4-projects',projects);renderProjList();populateProjectSelects();
 }
 function createProject(){
   const code=document.getElementById('pcf-code').value.trim().toUpperCase();
@@ -2729,7 +2736,7 @@ function createProject(){
   if(projects.find(p=>p.code===code)){err.style.display='block';err.textContent='Code déjà existant.';return;}
   err.style.display='none';
   projects.push({code,label,status});
-  W('mpe4-projects',projects);
+  WS('mpe4-projects',projects);
   document.getElementById('pcf-code').value='';document.getElementById('pcf-label').value='';
   populateProjectSelects();
   alert(`Projet ${code} créé ✓`);
@@ -2750,7 +2757,7 @@ function editWbs(code){
   if(!newLabel||newLabel.trim()===w.label)return;
   // Mettre à jour le libellé dans wbsList
   wbsList=wbsList.map(x=>x.code===code?{...x,label:newLabel.trim()}:x);
-  W('mpe4-wbs',wbsList);
+  WS('mpe4-wbs',wbsList);
   renderWbsList();
   renderProjList();
   populateProjectSelects();
@@ -2761,7 +2768,7 @@ function addWbs(){
   if(!code||!label)return;
   if(wbsList.find(w=>w.code===code))return;
   wbsList.push({code,label});
-  W('mpe4-wbs',wbsList);
+  WS('mpe4-wbs',wbsList);
   document.getElementById('nw-code').value='';document.getElementById('nw-label').value='';
   renderWbsList();
 }
@@ -2800,7 +2807,7 @@ function addTask(){
   }
 
   tasks.push({proj,wbs,num:num||'',label});
-  W('mpe4-tasks',tasks);
+  WS('mpe4-tasks',tasks);
   document.getElementById('nt-label').value='';
   // Auto-incrémenter le N° pour la prochaine saisie
   ntAutoNum();
@@ -2819,7 +2826,7 @@ function editTask(key){
   // Mettre à jour aussi les entrées existantes qui référencent cette tâche
   entries=entries.map(e=>e.project===proj&&e.wbs===wbs&&e.task===label?{...e,task:newLabel.trim()}:e);
   tasks[idx]={...tasks[idx],label:newLabel.trim()};
-  W('mpe4-tasks',tasks);W('mpe4-entries',entries);
+  WS('mpe4-tasks',tasks);WS('mpe4-entries',entries);
   renderProjList();
 }
 function deleteTask(key){
@@ -2831,7 +2838,7 @@ function deleteTask(key){
     :`Supprimer la tâche "${code} · ${label}" ?`;
   if(!confirm(msg))return;
   tasks=tasks.filter(t=>!(t.proj===proj&&t.wbs===wbs&&String(t.num)===String(num)&&t.label===label));
-  W('mpe4-tasks',tasks);
+  WS('mpe4-tasks',tasks);
   renderProjList();
 }
 function handleCfgDel(btn){
@@ -2847,20 +2854,20 @@ function handleCfgDel(btn){
     if(!confirm(msg))return;
     // Supprimer le WBS
     wbsList=wbsList.filter(w=>w.code!==code);
-    W('mpe4-wbs',wbsList);
+    WS('mpe4-wbs',wbsList);
     // Supprimer les tâches liées
     tasks=tasks.filter(t=>t.wbs!==code);
-    W('mpe4-tasks',tasks);
+    WS('mpe4-tasks',tasks);
     // Mettre à jour les entrées : vider le wbs mais garder les heures
     entries=entries.map(e=>e.wbs===code?{...e,wbs:'—'}:e);
-    W('mpe4-entries',entries);
+    WS('mpe4-entries',entries);
     // Rafraîchir tout
     renderWbsList();renderTaskList();renderProjList();
     populateProjectSelects();renderTodayList();
   } else if(t==='task'){
     if(!confirm(`Supprimer la tâche "${btn.dataset.delLabel}" ?`))return;
     tasks=tasks.filter(t=>!(t.proj===btn.dataset.delProj&&t.wbs===btn.dataset.delWbs&&t.label===btn.dataset.delLabel));
-    W('mpe4-tasks',tasks);renderTaskList();renderProjList();
+    WS('mpe4-tasks',tasks);renderTaskList();renderProjList();
   }
 }
 
@@ -2923,7 +2930,7 @@ function emDelete(){
   if(!_editEntryId)return;
   if(!confirm('Supprimer cette saisie ?'))return;
   entries=entries.filter(e=>e.id!==_editEntryId);
-  W('mpe4-entries',entries);closeEntryModal();renderTodayList();update35hCounter();
+  WS('mpe4-entries',entries);closeEntryModal();renderTodayList();update35hCounter();
   if(document.getElementById('page-journal').classList.contains('active'))renderCalendar();
 }
 function emSave(){
@@ -2939,7 +2946,7 @@ function emSave(){
     desc:document.getElementById('em-note').value,
     ms
   };
-  W('mpe4-entries',entries);closeEntryModal();renderTodayList();update35hCounter();
+  WS('mpe4-entries',entries);closeEntryModal();renderTodayList();update35hCounter();
   if(document.getElementById('page-journal').classList.contains('active'))renderCalendar();
 }
 function closeEntryModal(){
@@ -3172,8 +3179,8 @@ function exportPresencesPDF(all){
     const counts={};
     rowData.filter(r=>!r.isWE).forEach(r=>{
       const absVals=isCadre
-        ?[r.statusM,r.statusA].filter(v=>v&&v!=='present')
-        :[r.statusM].filter(v=>v&&v!=='present');
+        ?[r.statusM,r.statusA].filter(v=>v&&!['present','tt','dep'].includes(v))
+        :[r.statusM].filter(v=>v&&!['present','tt','dep'].includes(v));
       absVals.forEach(code=>{
         const lbl=ABSENCES.find(x=>x.code===code)?.label||code;
         counts[lbl]=(counts[lbl]||0)+(isCadre?0.5:1);
