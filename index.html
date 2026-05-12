@@ -3018,7 +3018,6 @@ function exportPresencesPDF(all){
   const dateStr=`${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
 
   usersToExport.forEach(u=>{
-    try{
     const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     // A4 portrait : 210mm large, marges 8mm → 194mm utiles
     const isCadre=u.type!=='horaire';
@@ -3190,7 +3189,6 @@ function exportPresencesPDF(all){
     doc.text(`Signature : ${u.name}`,202,ph-7,{align:'right'});
 
     doc.save(`MPE_Presences_${u.name.replace(/ /g,'-')}_${monthVal}.pdf`);
-    }catch(err){alert('Erreur PDF : '+err.message+'\n\nStack: '+err.stack?.substring(0,200));}
   });
 }
 
