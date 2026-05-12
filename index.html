@@ -2053,8 +2053,8 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
           if(isWork(apS)){arr2=pres.apmidi_arrive||'';dep2=pres.apmidi_depart||'';if(apS!=='present'){const cz=SC[apS];const tz=ST[apS];if(cz){cA2=`background:${cz};color:${tz};`;cD2=cA2;}}}
         } else {
           arr1=pres.arrive||'';dep2=pres.depart||'';
-          // Pause : utilise la valeur stockée OU '00:45' par défaut (comme l'app)
-          pause1=pres.pause||'00:45';
+          // Pause seulement si heures saisies
+          pause1=(pres.arrive&&pres.depart)?(pres.pause||'00:45'):'';
         }
       }
 
