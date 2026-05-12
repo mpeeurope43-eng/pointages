@@ -3023,12 +3023,19 @@ function exportPresencesPDF(all){
     const isCadre=u.type!=='horaire';
     const dim=new Date(y,m,0).getDate();
 
-    // En-tête compact
-    doc.setFillColor(23,21,14);doc.rect(8,8,194,11,'F');
-    doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont('helvetica','bold');
-    doc.text(`PRÉSENCES — ${u.name.toUpperCase()} — ${moisLabel.toUpperCase()} ${y}`,105,15,{align:'center'});
-    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(130);
-    doc.text(`Généré le ${dateStr}`,8,24);
+    // En-tête MPE orange + noir
+    doc.setFillColor(23,21,14);doc.rect(8,8,194,14,'F');
+    doc.setTextColor(201,79,12);doc.setFontSize(12);doc.setFont('helvetica','bold');
+    doc.text('MPE',12,18);
+    doc.setTextColor(255,255,255);doc.setFontSize(9);
+    doc.text(`FEUILLE DE PRÉSENCES  ·  ${u.name.toUpperCase()}  ·  ${moisLabel.toUpperCase()} ${y}`,36,18);
+    // Calcul total mois
+    let totMoisMin=0;
+    for(let dx=1;dx<=dim;dx++){const dsx=`${y}-${String(m).padStart(2,'0')}-${String(dx).padStart(2,'0')}`;const px=presences[`${u.id}_${dsx}`]||{};const tx=calcHoraireTotal(px);if(tx){const pp=tx.match(/(\d+)h(\d+)/);if(pp)totMoisMin+=parseInt(pp[1])*60+parseInt(pp[2]);}}
+    const totMoisStr=`${String(Math.floor(totMoisMin/60)).padStart(2,'0')}:${String(totMoisMin%60).padStart(2,'0')}`;
+    doc.setFillColor(201,79,12);doc.rect(8,22,194,7,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont('helvetica','normal');
+    doc.text(`${({horaire:'Horaire ETAM',cadre:'Cadre IC',admin:'Admin'})[u.type]||u.type}  |  Total heures mois : ${totMoisStr}  |  Généré le ${dateStr}`,10,27);
 
     const cols=isCadre
       ?['#','Jour','Date','Matin','Après-midi','Remarque']
@@ -3103,21 +3110,25 @@ function exportPresencesPDF(all){
           const hasReal=arr&&arr!=='00:00'&&dep&&dep!=='00:00';
           arrAff=arr;depAff=dep;
           pauseAff=hasReal?(pres.pause||'00:45'):'';
-          // Abs. / statut
           const s=pres.abs||'';
-          if(s==='tt'){absAff='Télétravail';}
-          else if(s==='dep'){absAff='Déplacement';}
+          // TT, Déplacement et Présent = travail → colonne Absence vide
+          if(s===''||s==='present'||s==='tt'||s==='dep'){absAff='';}
           else{absAff=presLabel(s)||'';}
-          statusM=pres.abs||(pres.arrive?'present':null);
+          statusM=s||(arr?'present':null);
         }
         const isWork3=v=>['present','tt','dep'].includes(v);
         let arr2Pdf='',dep2Pdf='',note='';
         if(pres.demi_j){
-          const mS=pres.matin||pres.matin_abs||'';const apS=pres.apmidi||pres.apmidi_abs||'';
-          if(isWork3(mS)){arr2Pdf=pres.matin_arrive||'';dep2Pdf=pres.matin_depart||'';}
-          if(isWork3(apS)){arr2Pdf=arr2Pdf||pres.apmidi_arrive||'';dep2Pdf=pres.apmidi_depart||'';}
+          const mS2=pres.matin||pres.matin_abs||'';const apS2=pres.apmidi||pres.apmidi_abs||'';
+          if(isWork3(mS2)){arr2Pdf=pres.matin_arrive||'';dep2Pdf=pres.matin_depart||'';}
+          if(isWork3(apS2)){arr2Pdf=arr2Pdf||pres.apmidi_arrive||'';dep2Pdf=pres.apmidi_depart||'';}
+          // Note pour les ½ journées avec TT ou Déplacement
+          const wM=isWork3(mS2)&&mS2!=='present'?presLabel(mS2):'';
+          const wA=isWork3(apS2)&&apS2!=='present'?presLabel(apS2):'';
+          note=[wM,wA].filter(Boolean).join(' / ');
         } else {
-          dep2Pdf=pres.depart||'';note=pres.dep_note||'';
+          dep2Pdf=pres.depart||'';
+          note=pres.abs==='dep'?(pres.dep_note||''):'';
         }
         row=[d,JOURS_FR[dow],`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`,arrAff,depAff,pauseAff,arr2Pdf,dep2Pdf,tot||'',absAff,note];
       }
@@ -3125,7 +3136,7 @@ function exportPresencesPDF(all){
     }
 
     doc.autoTable({
-      startY:26,head:[cols],body:rowData.map(r=>r.row),
+      startY:32,head:[cols],body:rowData.map(r=>r.row),
       margin:{left:8,right:8},
       styles:{fontSize:6.5,cellPadding:1.2,lineWidth:0.1,lineColor:[210,210,210]},
       headStyles:{fillColor:[23,21,14],textColor:255,fontStyle:'bold',fontSize:6.5,cellPadding:2},
