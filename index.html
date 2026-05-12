@@ -3019,6 +3019,7 @@ function exportPresencesPDF(all){
 
   usersToExport.forEach(u=>{
     try{
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     // A4 portrait : 210mm large, marges 8mm → 194mm utiles
     const isCadre=u.type!=='horaire';
     const dim=new Date(y,m,0).getDate();
