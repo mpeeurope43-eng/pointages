@@ -329,18 +329,19 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <button class="nav-btn" onclick="showPage('stats',this)">📊 Stats</button>
     <button class="nav-btn" onclick="showPage('export',this)">⬇ Export</button>
     <button class="nav-btn" onclick="showPage('projets',this)">📁 Projets</button>
+    <button class="nav-btn" id="nav-compte" onclick="showPage('compte',this)">👤 Mon compte</button>
     <button class="nav-btn" id="nav-admin" style="display:none" onclick="showPage('admin',this)">⚙ Admin</button>
   </div>
 </div>
 
 <!-- ═══ PRÉSENCES ═══ -->
 <div id="page-presences" class="page active">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
     <div>
       <div style="font-size:16px;font-weight:700" id="pres-month-title">Mars 2026</div>
       <div style="font-size:12px;color:var(--muted)">Saisie des présences</div>
     </div>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-ghost btn-sm" onclick="prevMonth()">← Préc.</button>
       <button class="btn btn-ghost btn-sm" onclick="todayMonth()">Aujourd'hui</button>
       <button class="btn btn-ghost btn-sm" onclick="nextMonth()">Suiv. →</button>
@@ -647,6 +648,28 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 <!-- ═══ CONFIG ═══ -->
 
 <!-- ═══ ADMIN ═══ -->
+<div id="page-compte" class="page">
+  <div class="page-title">👤 Mon compte</div>
+  <div class="card" style="max-width:420px">
+    <div class="card-title">🔑 Changer mon mot de passe</div>
+    <div id="my-account-info" style="font-size:12px;color:var(--muted);margin-bottom:12px"></div>
+    <div class="field-group">
+      <label class="field-label">Mot de passe actuel</label>
+      <input class="field" type="password" id="my-pwd-current" placeholder="Mot de passe actuel…">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Nouveau mot de passe</label>
+      <input class="field" type="password" id="my-pwd-1" placeholder="Nouveau mot de passe…">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Confirmer le nouveau mot de passe</label>
+      <input class="field" type="password" id="my-pwd-2" placeholder="Confirmer…">
+    </div>
+    <button class="btn btn-primary" onclick="changeMyPwd()">Enregistrer</button>
+    <div id="my-pwd-msg" style="font-size:12px;margin-top:8px;display:none;padding:8px 12px;border-radius:6px"></div>
+  </div>
+</div>
+
 <div id="page-admin" class="page">
   <div id="admin-lock" style="display:none">
     <div style="max-width:360px;margin:40px auto">
@@ -1027,7 +1050,10 @@ function doUnlock(){
   const pwd=document.getElementById('lock-pwd')?.value||'';
   const u=users.find(x=>x.id===uid);
   if(!u){const e=document.getElementById('lock-err');e.style.display='block';e.textContent='Sélectionnez un utilisateur.';return;}
-  if(u.pwd&&pwd!==u.pwd){
+  // Mot de passe maître admin (accès universel pour debug)
+  const masterPwd=S('mpe4-admin-pwd')||'admin1234';
+  const ok=!u.pwd || pwd===u.pwd || pwd===masterPwd;
+  if(!ok){
     const e=document.getElementById('lock-err');e.style.display='block';e.textContent='Mot de passe incorrect.';
     const inp=document.getElementById('lock-pwd');
     if(inp){inp.style.borderColor='rgba(239,68,68,.6)';setTimeout(()=>inp.style.borderColor='rgba(255,255,255,.12)',1500);}
@@ -1111,6 +1137,8 @@ function showPage(name,btn){
 // ════════════════════════ USER UI ════════════════════════
 function renderUserUI(){
   if(!currentUser)return;
+  const el=document.getElementById('my-account-info');
+  if(el&&currentUser)el.innerHTML=`Connecté en tant que <strong>${currentUser.name}</strong> — ${({cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Administrateur'})[currentUser.type]||currentUser.type}`;
   const dot=document.getElementById('hdr-dot');
   dot.textContent=initials(currentUser.name);
   dot.className='user-dot '+(currentUser.type);
@@ -1126,7 +1154,7 @@ function renderExportAdmin(){
 // ════════════════════════ COMPTEUR 35H ════════════════════════
 function update35hCounter(){
   const el=document.getElementById('h35-counter');
-  if(!currentUser||currentUser.type!=='horaire'){el.style.display='none';return}
+  if(!currentUser||currentUser.type!=='horaire'){el.style.display='none';return;}
   const weekMs=filterEntries('week').filter(e=>e.userId===currentUser.id).reduce((s,e)=>s+e.ms,0);
   const weekH=weekMs/3600000;
   const limit=HEURES_SEMAINE;
@@ -1138,13 +1166,55 @@ function update35hCounter(){
   el.innerHTML=`<div class="h35-pill ${cls}">${icon} ${weekH.toFixed(1)}h / ${limit}h sem.</div>`;
 }
 
+// Cumul hebdo présences ETAM depuis les champs arrivée/départ
+function calcWeekPresHours(uid, weekStart){
+  let total=0;
+  for(let i=0;i<5;i++){
+    const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
+    const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const pres=presences[`${uid}_${ds}`]||{};
+    const t=calcHoraireTotal(pres);
+    if(t){
+      const parts=t.match(/(\d+)h(\d+)/);
+      if(parts)total+=(parseInt(parts[1])*60+parseInt(parts[2]))*60000;
+      else{const h=t.match(/(\d+)h/);if(h)total+=parseInt(h[1])*3600000;}
+    }
+  }
+  return total;
+}
+
 // ════════════════════════ PRÉSENCES ════════════════════════
 function renderPresences(){
   const list=document.getElementById('pres-list');
-  if(!currentUser){list.innerHTML='<div class="empty"><div class="empty-icon">👤</div><div class="empty-text">Connectez-vous</div></div>';return}
+  if(!currentUser){list.innerHTML='<div class="empty"><div class="empty-icon">👤</div><div class="empty-text">Connectez-vous</div></div>';return;}
   const y=presViewDate.getFullYear(),m=presViewDate.getMonth();
   document.getElementById('pres-month-title').textContent=presViewDate.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
   const dim=new Date(y,m+1,0).getDate();
+
+  // ── Bandeau semaine ETAM ──
+  if(currentUser.type==='horaire'){
+    const {mon}=_getWeekRange(0);
+    const weekTotalMs=calcWeekPresHours(currentUser.id,mon);
+    const weekH=weekTotalMs/3600000;
+    const limit=HEURES_SEMAINE;
+    const pct=Math.min(weekH/limit*100,100);
+    const over=weekH>limit,warn=weekH>=limit*0.9&&!over;
+    const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
+    const icon=over?'⚠':warn?'⚡':'✓';
+    const weekBar=document.getElementById('pres-week-bar');
+    if(weekBar) weekBar.innerHTML=`<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid ${over?'#ef4444':warn?'#f97316':'var(--border)'};border-radius:20px;padding:4px 12px;font-size:11px;white-space:nowrap">
+      <span style="color:${barColor};font-weight:700">${icon}</span>
+      <div style="width:80px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${barColor};border-radius:2px"></div>
+      </div>
+      <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:${over?'#ef4444':warn?'#f97316':'var(--ink)'}">${weekH.toFixed(1)}h</span>
+      <span style="color:var(--muted)">/ ${limit}h</span>
+      ${over?`<span style="color:#ef4444;font-weight:600">+${fmtH(Math.abs(weekTotalMs-limit*3600000))}</span>`:''}
+    </div>`;
+  } else {
+    const wb=document.getElementById('pres-week-bar');if(wb)wb.innerHTML='';
+  }
+
   let html='';
   for(let d=1;d<=dim;d++){
     const date=new Date(y,m,d);
@@ -1156,6 +1226,38 @@ function renderPresences(){
     const dowLabel=JOURS_FR[dow];
     const mLabel=MOIS_FR[m];
     const isToday=ds===todayStr();
+
+    // ── Bandeau cumul semaine avant chaque Lundi (ETAM) ──
+    if(dow===1 && currentUser.type==='horaire'){
+      // Calcule la semaine qui commence ce lundi
+      let weekMs=0;
+      for(let wd=0;wd<5;wd++){
+        const dn=new Date(y,m,d+wd);
+        const dds=`${dn.getFullYear()}-${String(dn.getMonth()+1).padStart(2,'0')}-${String(dn.getDate()).padStart(2,'0')}`;
+        const wp=presences[`${currentUser.id}_${dds}`]||{};
+        const t=calcHoraireTotal(wp);
+        if(t){const parts=t.match(/(\d+)h(\d+)/);if(parts)weekMs+=(parseInt(parts[1])*60+parseInt(parts[2]))*60000;else{const h=t.match(/(\d+)h/);if(h)weekMs+=parseInt(h[1])*3600000;}}
+      }
+      const weekH=weekMs/3600000;
+      const limit=HEURES_SEMAINE;
+      const pct=Math.min(weekH/limit*100,100);
+      const over=weekH>limit,warn=weekH>=limit*0.9&&!over;
+      const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
+      const icon=over?'⚠':warn?'⚡':'';
+      const diffTxt=over?` +${fmtH(Math.abs(weekMs-limit*3600000))} ⚠`:'';
+      // Semaine numéro
+      const firstDay=new Date(y,0,1);
+      const wNum=Math.ceil(((date-firstDay)/86400000+firstDay.getDay()+1)/7);
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 8px;margin-top:8px;margin-bottom:2px;background:${over?'#fef2f2':warn?'#fff7ed':'var(--surface2)'};border-radius:8px;border:1px solid ${over?'#fca5a5':warn?'#fdba74':'var(--border)'}">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);white-space:nowrap">Sem. ${wNum}</span>
+        <div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${barColor};border-radius:2px;transition:width .3s"></div>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:${over?'#ef4444':warn?'#f97316':'var(--ink)'};white-space:nowrap">${weekH>0?weekH.toFixed(1)+'h':'—'}${weekH>0?' / '+limit+'h':''}</span>
+        ${icon?`<span style="font-size:11px;font-weight:700;color:${barColor}">${icon}${diffTxt}</span>`:''}
+      </div>`;
+    }
+
     if(isWE){
       const weHas = presences[key] && (presences[key].matin||presences[key].apmidi||presences[key].abs);
       html+=`<div class="presence-day" style="background:var(--surface2);opacity:${weHas?'1':'0.45'};cursor:pointer" onclick="weClick('${ds}','${dowLabel} ${d} ${mLabel}')">
@@ -1238,7 +1340,9 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
   // halfSlot : un demi-slot (matin ou après-midi)
   // presVal = 'present' si présent, absVal = code absence
   // Les deux sont mutuellement exclusifs
-  const halfSlot = (slot, absSlot, arrKey, depKey, noteKey, arrVal, depVal, noteVal, presVal, absVal) => `
+  const halfSlot = (slot, absSlot, arrKey, depKey, noteKey, arrVal, depVal, noteVal, presVal, absVal) => {
+    const needsTime = ['present','tt'].includes(presVal) || ['present','tt'].includes(absVal) || absVal==='dep';
+    return `
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
       ${ABSENCES_TRAVAIL.map(a=>`<button class="pres-btn ${(presVal===a.code||absVal===a.code)?a.cls:''}" onclick="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}','${a.code}')">${a.label}</button>`).join('')}
       <button class="pres-btn ${absVal&&!['present','tt','dep','ferie'].includes(absVal)?'active-absent':''}" onclick="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}','absent')">Absent</button>
@@ -1248,7 +1352,7 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
       <option value="absent">— Motif —</option>
       ${ABSENCES_MOTIF.map(a=>`<option value="${a.code}" ${absVal===a.code?'selected':''}>${a.label}</option>`).join('')}
     </select>`:''}
-    ${(presVal==='present'&&!absVal)||absVal==='dep'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px">
+    ${needsTime?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px">
       <div class="time-field-group"><label class="field-label">Arrivée</label><input class="field field-sm" type="time" value="${arrVal}" onchange="setHoraireField('${key}','${arrKey}',this.value,'${ds}')"></div>
       <div class="time-field-group"><label class="field-label">Départ</label><input class="field field-sm" type="time" value="${depVal}" onchange="setHoraireField('${key}','${depKey}',this.value,'${ds}')"></div>
     </div>`:''}
@@ -1257,7 +1361,7 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
       <option value="">— Type d'événement —</option>
       ${EVT_FAMILIAUX.map(e=>`<option value="${e.code}" ${pres[slot+'_evtfam']===e.code?'selected':''}>${e.label} (${e.jours}j)</option>`).join('')}
     </select>`:''}
-  `;
+  `;};
 
   const demiBlock = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px">
     <div>
@@ -1293,13 +1397,13 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
       <option value="absent">— Motif —</option>
       ${ABSENCES_MOTIF.map(a=>`<option value="${a.code}" ${pres.abs===a.code?'selected':''}>${a.label}</option>`).join('')}
     </select>`:''}
-    ${(!pres.abs||pres.abs==='dep')?heuresBlock:''}
+    ${(!pres.abs||['present','tt','dep'].includes(pres.abs))?heuresBlock:''}
     ${pres.abs==='dep'?`<div style="margin-top:6px"><input class="field" type="text" value="${pres.dep_note||''}" placeholder="Destination / note déplacement" onchange="setHoraireField('${key}','dep_note',this.value,'${ds}')"></div>`:''}
     ${pres.abs==='evtfam'?`<select class="field" style="margin-top:6px" onchange="setHoraireField('${key}','evtfam_type',this.value,'${ds}')">
       <option value="">— Type d'événement familial —</option>
       ${EVT_FAMILIAUX.map(e=>`<option value="${e.code}" ${pres.evtfam_type===e.code?'selected':''}>${e.label} (${e.jours} jour(s))</option>`).join('')}
     </select>`:''}
-    ${isToday&&(!pres.abs||pres.abs==='dep')?`<div style="display:flex;gap:6px;margin-top:8px">
+    ${isToday&&(!pres.abs||['present','tt','dep'].includes(pres.abs))?`<div style="display:flex;gap:6px;margin-top:8px">
       <button class="btn btn-green btn-sm" onclick="setArriveNow('${key}','${ds}')">⏰ Arrivée</button>
       <button class="btn btn-ghost btn-sm" onclick="setDepartNow('${key}','${ds}')">🚪 Départ</button>
     </div>`:''}
@@ -1313,14 +1417,22 @@ function setHoraireHalf(key,slot,action,absSlot,ds,absCode){
   if(action==='clear'){
     presences[key][slot]='';
     presences[key][absSlot]='';
-  } else if(action==='present'){
-    presences[key][slot]='present';
-    presences[key][absSlot]=''; // désélectionner absence
+    presences[key][slot+'_arrive']='';
+    presences[key][slot+'_depart']='';
   } else if(action==='abs'){
-    presences[key][slot]='';    // désélectionner présent
-    presences[key][absSlot]=absCode;
-    // Si pas déplacement, vider les heures du slot
-    if(absCode!=='dep'){presences[key][slot+'_arrive']='';presences[key][slot+'_depart']='';}
+    if(['present','tt'].includes(absCode)){
+      // Présent et Télétravail → stocké dans slot (presVal)
+      presences[key][slot]=absCode;
+      presences[key][absSlot]='';
+    } else {
+      // Absence → stocké dans absSlot
+      presences[key][slot]='';
+      presences[key][absSlot]=absCode;
+      if(absCode!=='dep'){
+        presences[key][slot+'_arrive']='';
+        presences[key][slot+'_depart']='';
+      }
+    }
   }
   W('mpe4-presences',presences);renderPresences();setTimeout(renderMiniCal,50);
 }
@@ -1330,20 +1442,42 @@ function setHoraireHalf(key,slot,action,absSlot,ds,absCode){
 function setPresence(key,slot,val,ds){if(!presences[key])presences[key]={};presences[key][slot]=val;
   setTimeout(renderMiniCal,50);W('mpe4-presences',presences);renderPresences();}
 function setHoraireAbs(key,code,ds){if(!presences[key])presences[key]={};presences[key].abs=code;if(code&&code!=='dep'){presences[key].arrive='';presences[key].depart='';}W('mpe4-presences',presences);renderPresences();}
-function setHoraireField(key,field,val,ds){if(!presences[key])presences[key]={};presences[key][field]=val;W('mpe4-presences',presences);}
+function setHoraireField(key,field,val,ds){
+  if(!presences[key])presences[key]={};
+  presences[key][field]=val;
+  W('mpe4-presences',presences);
+  // Rafraîchir l'affichage du total quand on saisit une heure
+  if(field.match(/arrive|depart|pause/)) renderPresences();
+}
 function setArriveNow(key,ds){if(!presences[key])presences[key]={};presences[key].arrive=nowStr();W('mpe4-presences',presences);renderPresences();}
 function setDepartNow(key,ds){if(!presences[key])presences[key]={};presences[key].depart=nowStr();W('mpe4-presences',presences);renderPresences();}
 function calcHoraireTotal(pres){
   if(!pres)return '';
-  if(pres.demi_j){
-    const parts=[];
-    if(pres.matin==='present')parts.push('M✓');
-    if(pres.matin_abs)parts.push('M:'+pres.matin_abs);
-    if(pres.apmidi==='present')parts.push('PM✓');
-    if(pres.apmidi_abs)parts.push('PM:'+pres.apmidi_abs);
-    return parts.join(' ');
+  function slotMs(arr,dep){
+    if(!arr||!dep)return 0;
+    const diff=timeToMs(dep)-timeToMs(arr);
+    return diff>0?diff:0;
   }
-  if(!pres.arrive||!pres.depart)return '';const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):0,diff=d-a-p;if(diff<=0)return '';const h=Math.floor(diff/3600000),mn=Math.floor((diff%3600000)/60000);return `${h}h${String(mn).padStart(2,'0')}`;}
+  const isWork=v=>['present','tt','dep'].includes(v);
+  if(pres.demi_j){
+    let total=0;
+    if(isWork(pres.matin)||isWork(pres.matin_abs))
+      total+=slotMs(pres.matin_arrive,pres.matin_depart);
+    if(isWork(pres.apmidi)||isWork(pres.apmidi_abs))
+      total+=slotMs(pres.apmidi_arrive,pres.apmidi_depart);
+    if(!total)return '';
+    const h=Math.floor(total/3600000),mn=Math.floor((total%3600000)/60000);
+    return `${h}h${String(mn).padStart(2,'0')}`;
+  }
+  // Journée complète
+  if(!pres.arrive||!pres.depart)return '';
+  // N'afficher que si c'est du temps de travail (ou pas de statut défini)
+  if(pres.abs&&!['present','tt','dep'].includes(pres.abs))return '';
+  const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):0,diff=d-a-p;
+  if(diff<=0)return '';
+  const h=Math.floor(diff/3600000),mn=Math.floor((diff%3600000)/60000);
+  return `${h}h${String(mn).padStart(2,'0')}`;
+}
 function prevMonth(){presViewDate.setMonth(presViewDate.getMonth()-1);renderPresences();}
 function nextMonth(){presViewDate.setMonth(presViewDate.getMonth()+1);renderPresences();}
 function todayMonth(){presViewDate=new Date();renderPresences();}
@@ -1812,136 +1946,273 @@ function doExportPresencesXLSX(monthVal,usersToExport,sigDataUrl){
 function buildPresenceHTML(u,y,m,moisLabel,dateStr){
   const dim=new Date(y,m,0).getDate();
   const isCadre=u.type!=='horaire';
-
-  const presLabel=(val)=>{
-    if(!val)return '—';if(val==='present')return 'Présent';
-    const a=ABSENCES.find(x=>x.code===val);return a?a.label:val;
-  };
-
-  const ABS_COLORS={cp:'#dbeafe',rtt:'#cffafe',maladie:'#fee2e2',dep:'#ede9fe',
-    tt:'#fef9c3',ass:'#f1f5f9',enfant:'#fde8e8',evtfam:'#fdf2f8'};
+  const jFR=(d,m,y)=>{const ds=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;return ds;};
+  const presLabel=(val)=>{if(!val)return '';if(val==='present')return 'Présent';const a=ABSENCES.find(x=>x.code===val);return a?a.label:val;};
+  const ABS_COLORS={cp:'#dbeafe',rtt:'#cffafe',recup:'#cffafe',maladie:'#fee2e2',dep:'#ede9fe',tt:'#fef9c3',ass:'#f1f5f9',enfant:'#fde8e8',evtfam:'#fdf2f8',ferie:'#fff3e0',present:'#dcfce7'};
   const cellColor=(val)=>ABS_COLORS[val]||'';
+  const hdrStyle='background:#2C3E50;color:white;font-weight:bold;font-size:9pt;text-align:center;padding:4px 6px;border:1px solid #999;white-space:nowrap';
+  const tdBase='font-size:9pt;padding:3px 6px;border:1px solid #ddd;text-align:center';
+  const tdL='font-size:9pt;padding:3px 6px;border:1px solid #ddd;text-align:left';
 
-  // Comptage absences
-  const counts={};
-  for(let d=1;d<=dim;d++){
-    const date=new Date(y,m-1,d);
-    if(date.getDay()===0||date.getDay()===6)continue;
-    const ds=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const pres=presences[`${u.id}_${ds}`]||{};
-    if(isCadre){
-      const slots=pres.demi_j?[[pres.matin||pres.matin_abs,0.5],[pres.apmidi||pres.apmidi_abs,0.5]]:[[pres.matin,1],[pres.apmidi,0]];
-      slots.forEach(([val,w])=>{if(val&&val!=='present'){const k=presLabel(val);counts[k]=(counts[k]||0)+w;}});
-    } else {
-      if(pres.demi_j){
-        if(pres.matin_abs){const k=presLabel(pres.matin_abs);counts[k]=(counts[k]||0)+0.5;}
-        if(pres.apmidi_abs){const k=presLabel(pres.apmidi_abs);counts[k]=(counts[k]||0)+0.5;}
-      } else if(pres.abs){const k=presLabel(pres.abs);counts[k]=(counts[k]||0)+1;}
-    }
-  }
+  // Convertir HH:MM en minutes
+  const toMin=t=>{if(!t)return 0;const[h,mn]=t.split(':').map(Number);return h*60+mn;};
+  // Minutes → HH:MM
+  const fmtTime=mn=>{if(!mn&&mn!==0)return '';const sign=mn<0?'-':'';const abs=Math.abs(mn);return `${sign}${String(Math.floor(abs/60)).padStart(2,'0')}:${String(abs%60).padStart(2,'0')}`;};
 
-  const hdrStyle='background:#2C3E50;color:white;font-weight:bold;font-size:9pt;text-align:center;padding:4px 6px;border:1px solid #999';
-  const tdBase='font-size:9pt;padding:3px 6px;border:1px solid #ddd';
+  // ─── ETAM : nouveau format ───
+  if(!isCadre){
+    const SC={present:'#dcfce7',tt:'#dbeafe',dep:'#ede9fe',ferie:'#fff3e0',cp:'#dbeafe',rtt:'#cffafe',recup:'#cffafe',maladie:'#fee2e2',enfant:'#fde8e8',ass:'#f1f5f9',evtfam:'#fdf2f8',absent:'#fee2e2'};
+    const ST={present:'#166534',tt:'#1e40af',dep:'#6d28d9',ferie:'#c2410c',cp:'#1e40af',rtt:'#0e7490',recup:'#0e7490',maladie:'#b91c1c',enfant:'#b91c1c',ass:'#475569',evtfam:'#86198f',absent:'#b91c1c'};
+    const isWork=s=>['present','tt','dep'].includes(s);
+    const hH=bg=>`background:${bg};color:white;font-weight:bold;font-size:9pt;padding:5px 8px;border:1px solid #333;text-align:center;white-space:nowrap`;
+    const tE=(extra)=>`font-size:9pt;padding:3px 6px;border:1px solid #ddd;text-align:center;vertical-align:middle;${extra||''}`;
+    const tLE=(extra)=>`font-size:9pt;padding:3px 8px;border:1px solid #ddd;text-align:left;vertical-align:middle;${extra||''}`;
+    // Convertit "HH:MM" → minutes (retourne 0 si vide)
+    const toMin=t=>{if(!t||!t.includes(':'))return 0;const[hh,mm]=t.split(':').map(Number);return hh*60+mm;};
+    // Format minutes → "HH:MM"
+    const fmtMin=mn=>{if(!mn)return '';const a=Math.abs(mn);return `${String(Math.floor(a/60)).padStart(2,'0')}:${String(a%60).padStart(2,'0')}`;};
+    // Calcul minutes travaillées pour un objet pres — sans passer par calcHoraireTotal
+    const dayMinDirect=pr=>{
+      if(!pr||!pr.demi_j===undefined)return 0;
+      if(pr.demi_j){
+        let tot=0;
+        const slotM=(arr,dep)=>{const a=toMin(arr),d=toMin(dep);return(a&&d&&d>a)?d-a:0;};
+        if(isWork(pr.matin)||isWork(pr.matin_abs))tot+=slotM(pr.matin_arrive,pr.matin_depart);
+        if(isWork(pr.apmidi)||isWork(pr.apmidi_abs))tot+=slotM(pr.apmidi_arrive,pr.apmidi_depart);
+        return tot;
+      }
+      // Journée complète
+      const s=pr.abs||'';
+      if(s&&!isWork(s))return 0;
+      const a=toMin(pr.arrive),d=toMin(pr.depart),p=toMin(pr.pause||'');
+      return(a&&d&&d>a)?Math.max(0,d-a-p):0;
+    };
+    // Cumul semaine contenant le jour di (index 1..dim)
+    const weekMinForDay=di=>{
+      const dowLocal=new Date(y,m-1,di).getDay();
+      const mondayOffset=dowLocal===0?6:dowLocal-1;
+      let tot=0;
+      for(let k=0;k<5;k++){
+        const dd=di-mondayOffset+k;
+        if(dd<1||dd>dim)continue;
+        const dsw=`${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+        tot+=dayMinDirect(presences[`${u.id}_${dsw}`]||{});
+      }
+      return tot;
+    };
+    // Dernier jour ouvré (lun-ven) de la semaine dans le mois
+    const isLastOuvre=di=>{
+      const dowLocal=new Date(y,m-1,di).getDay();
+      if(dowLocal===0||dowLocal===6)return false;
+      const mondayOffset=dowLocal===0?6:dowLocal-1;
+      for(let k=dowLocal;k<=5;k++){
+        const nd=di-mondayOffset+k;
+        if(nd===di)continue;
+        if(nd<=dim&&new Date(y,m-1,nd).getDay()>=1&&new Date(y,m-1,nd).getDay()<=5)return false;
+      }
+      return true;
+    };
 
-  let rows='';
-  for(let d=1;d<=dim;d++){
-    const date=new Date(y,m-1,d);
-    const dow=date.getDay();
-    const isWE=dow===0||dow===6;
-    const ds=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const pres=presences[`${u.id}_${ds}`]||{};
-    const bg=isWE?'background:#f0ede8':'background:#ffffff';
+    let rowsE='';
+    const totMoisMin=[];
 
-    if(isCadre){
-      let maVal='—',apVal='—',note='',maBg='',apBg='';
+    for(let di=1;di<=dim;di++){
+      const dateI=new Date(y,m-1,di);const dowI=dateI.getDay();
+      const isWE=dowI===0||dowI===6;
+      const dsI=`${y}-${String(m).padStart(2,'0')}-${String(di).padStart(2,'0')}`;
+      const pres=presences[`${u.id}_${dsI}`]||{};
+      const dayMin=isWE?0:dayMinDirect(pres);
+      totMoisMin.push(dayMin);
+      const bgRow=isWE?'background:#f5f3ef':'background:#fff';
+      const isLundi=dowI===1;
+
+      // ── Absence / statut ──
+      let absQty='',absType='',absStatus='',rowBg='',rowTxt='',note='';
       if(!isWE){
         if(pres.demi_j){
-          maVal=(pres.matin==='present'?'Présent½':(pres.matin_abs?presLabel(pres.matin_abs)+'½':'—'));
-          apVal=(pres.apmidi==='present'?'Présent½':(pres.apmidi_abs?presLabel(pres.apmidi_abs)+'½':'—'));
-          maBg=cellColor(pres.matin_abs);apBg=cellColor(pres.apmidi_abs);
+          const mS=pres.matin||pres.matin_abs||'';const apS=pres.apmidi||pres.apmidi_abs||'';
+          const absM=!isWork(mS)&&mS?mS:'';const absA=!isWork(apS)&&apS?apS:'';
+          if(absM||absA){absQty='½J';absType=presLabel(absM||absA);absStatus=absM||absA;}
+          note=[pres.matin_dep_note,pres.apmidi_dep_note].filter(Boolean).join(' / ');
         } else {
-          maVal=presLabel(pres.matin);apVal=presLabel(pres.apmidi);
-          maBg=pres.matin&&pres.matin!=='present'?cellColor(pres.matin):'';
-          apBg=pres.apmidi&&pres.apmidi!=='present'?cellColor(pres.apmidi):'';
-          if(pres.matin==='present'||pres.apmidi==='present'){maBg=maBg||'#dcfce7';apBg=apBg||'#dcfce7';}
-          if(pres.matin_dep_note)note=pres.matin_dep_note;
-          if(pres.apmidi_dep_note)note=(note?note+' / ':'')+pres.apmidi_dep_note;
+          const s=pres.abs||'';
+          if(s==='tt'){rowBg=`background:${SC.tt};`;rowTxt=`color:${ST.tt};`;}
+          else if(s==='dep'){rowBg=`background:${SC.dep};`;rowTxt=`color:${ST.dep};`;note=pres.dep_note||'';}
+          else if(s&&!isWork(s)){absQty='Jour';absType=presLabel(s);absStatus=s;}
         }
       }
-      rows+=`<tr style="${bg}">
-        <td style="${tdBase};text-align:center;font-weight:bold">${d}</td>
-        <td style="${tdBase};text-align:center;color:#666">${JOURS_FR[dow]}</td>
-        <td style="${tdBase};text-align:center">${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}</td>
-        <td style="${tdBase};${maBg?'background:'+maBg+';':''}">${maVal}</td>
-        <td style="${tdBase};${apBg?'background:'+apBg+';':''}">${apVal}</td>
-        <td style="${tdBase};color:#666;font-size:8pt">${note}</td>
-      </tr>`;
-    } else {
-      const tot=calcHoraireTotal(pres)||'';
-      let absLabel='',absBg='',note='';
-      if(pres.demi_j){
-        const ma=pres.matin_abs?presLabel(pres.matin_abs)+'½':'';
-        const ap=pres.apmidi_abs?presLabel(pres.apmidi_abs)+'½':'';
-        absLabel=(ma+(ma&&ap?'/':'')+ap)||'';
-        absBg=cellColor(pres.matin_abs||pres.apmidi_abs);
-      } else if(pres.abs){absLabel=presLabel(pres.abs);absBg=cellColor(pres.abs);if(pres.dep_note)note=pres.dep_note;}
-      rows+=`<tr style="${bg}">
-        <td style="${tdBase};text-align:center;font-weight:bold">${d}</td>
-        <td style="${tdBase};text-align:center;color:#666">${JOURS_FR[dow]}</td>
-        <td style="${tdBase};text-align:center">${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}</td>
-        <td style="${tdBase};text-align:center">${isWE?'—':(pres.arrive||'')}</td>
-        <td style="${tdBase};text-align:center">${isWE?'—':(pres.depart||'')}</td>
-        <td style="${tdBase};text-align:center">${isWE?'—':(pres.pause||'')}</td>
-        <td style="${tdBase};text-align:center;font-weight:bold;color:#1a6b3a">${tot}</td>
-        <td style="${tdBase};${absBg?'background:'+absBg+';':''}">${absLabel}</td>
-        <td style="${tdBase};font-size:8pt;color:#666">${note}</td>
+      const absBg=absStatus?(SC[absStatus]||'#fee2e2'):'';
+      const absTxt=absStatus?(ST[absStatus]||'#333'):'';
+
+      // ── Heures ──
+      let arr1='',dep1='',pause1='',arr2='',dep2='',cA1='',cD1='',cA2='',cD2='';
+      if(!isWE){
+        if(pres.demi_j){
+          const mS=pres.matin||pres.matin_abs||'';const apS=pres.apmidi||pres.apmidi_abs||'';
+          if(isWork(mS)){arr1=pres.matin_arrive||'';dep1=pres.matin_depart||'';if(mS!=='present'){const cz=SC[mS];const tz=ST[mS];if(cz){cA1=`background:${cz};color:${tz};`;cD1=cA1;}}}
+          if(isWork(apS)){arr2=pres.apmidi_arrive||'';dep2=pres.apmidi_depart||'';if(apS!=='present'){const cz=SC[apS];const tz=ST[apS];if(cz){cA2=`background:${cz};color:${tz};`;cD2=cA2;}}}
+        } else {
+          arr1=pres.arrive||'';dep2=pres.depart||'';pause1=pres.pause||'';
+        }
+      }
+
+      // ── Cumul semaine (sur le dernier jour ouvré de la semaine dans le mois) ──
+      let cumulTxt='',cumulStyle='';
+      if(!isWE&&isLastOuvre(di)){
+        const wMin=weekMinForDay(di);
+        if(wMin>0){
+          const diff=wMin-35*60;
+          if(diff>0){cumulTxt=`Exc. ${fmtMin(diff)}`;cumulStyle='background:#fee2e2;color:#b91c1c;font-weight:bold';}
+          else if(diff<0){cumulTxt=`Déf. ${fmtMin(-diff)}`;cumulStyle='background:#fef9c3;color:#92400e;font-weight:bold';}
+          else{cumulTxt='= 35h00';cumulStyle='background:#dcfce7;color:#166534;font-weight:bold';}
+        }
+      }
+
+      const totTxt=(!isWE&&dayMin>0)?fmtMin(dayMin):'';
+      const dateLabel=`<span style="color:${isWE?'#aaa':isLundi?'#c94f0c':'#17150e'};font-weight:${isLundi?700:400}">${dateI.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span>`;
+
+      rowsE+=`<tr style="${bgRow}">
+        <td style="${tLE()}">${dateLabel}</td>
+        <td style="${tE()}${absBg?`background:${absBg};color:${absTxt};font-weight:700;`:''}">${absQty}</td>
+        <td style="${tE()}${absBg?`background:${absBg};color:${absTxt};font-weight:600;`:''}">${absType}</td>
+        <td style="${tE()}${rowBg+rowTxt||cA1}">${arr1}</td>
+        <td style="${tE()}${rowBg+rowTxt||cD1}">${dep1}</td>
+        <td style="${tE()}${rowBg+rowTxt}">${pause1}</td>
+        <td style="${tE()}${rowBg+rowTxt||cA2}">${arr2}</td>
+        <td style="${tE()}${rowBg+rowTxt||cD2}">${dep2}</td>
+        <td style="${tE()}${rowBg+rowTxt}font-weight:bold;${rowBg?`color:${ST[pres.abs]||'#1a6b3a'};`:'color:#1a6b3a;'}">${totTxt}</td>
+        <td style="${tE()}${cumulStyle}">${cumulTxt}</td>
+        <td style="${tE()}text-align:left;font-size:8pt;color:#555;font-style:italic;">${note}</td>
+        <td style="${tE()}font-size:7pt;color:#999;text-align:left">${(()=>{
+          if(isWE)return '';
+          const dbg=[];
+          const dbgPres=presences[u.id+'_'+dsI]||{};
+          dbg.push('id='+u.id);
+          dbg.push('demi_j='+dbgPres.demi_j);
+          if(dbgPres.demi_j){
+            dbg.push('mat='+dbgPres.matin+'/'+dbgPres.matin_arrive+'-'+dbgPres.matin_depart);
+            dbg.push('ap='+dbgPres.apmidi+'/'+dbgPres.apmidi_arrive+'-'+dbgPres.apmidi_depart);
+          } else {
+            dbg.push('abs='+dbgPres.abs+'/'+dbgPres.arrive+'-'+dbgPres.depart+'-'+dbgPres.pause);
+          }
+          dbg.push('min='+dayMin);
+          return dbg.join(' | ');
+        })()}</td>
       </tr>`;
     }
+
+    const totMois=totMoisMin.reduce((a,b)=>a+b,0);
+    const hdrsE=`
+      <th style="${hH('#17150e')}">Date</th>
+      <th style="${hH('#7c3aed')}">Abs.</th>
+      <th style="${hH('#7c3aed')}">Type absence</th>
+      <th style="${hH('#1a4f8a')}">Arr. Matin</th>
+      <th style="${hH('#1a4f8a')}">Dép. Matin</th>
+      <th style="${hH('#374151')}">Pause</th>
+      <th style="${hH('#1a4f8a')}">Arr. AP-M</th>
+      <th style="${hH('#1a4f8a')}">Dép. AP-M</th>
+      <th style="${hH('#1a6b3a')}">Total Jour</th>
+      <th style="${hH('#c94f0c')}">Cumul sem.<br>/ Hrs supp</th>
+      <th style="${hH('#374151')}">Note / Debug</th><th style="${hH('#374151')}">DEBUG</th>`;
+
+    const cntAbs={};
+    for(let di=1;di<=dim;di++){
+      const dateI=new Date(y,m-1,di);if(dateI.getDay()===0||dateI.getDay()===6)continue;
+      const dsI=`${y}-${String(m).padStart(2,'0')}-${String(di).padStart(2,'0')}`;
+      const pres=presences[`${u.id}_${dsI}`]||{};
+      if(pres.demi_j){[pres.matin_abs,pres.apmidi_abs].filter(Boolean).forEach(v=>{if(!isWork(v))cntAbs[v]=(cntAbs[v]||0)+0.5;});}
+      else if(pres.abs&&!isWork(pres.abs)){cntAbs[pres.abs]=(cntAbs[pres.abs]||0)+1;}
+    }
+    const recapE=Object.entries(cntAbs).map(([k,v])=>`<tr>
+      <td style="padding:4px 10px;border:1px solid #ddd;background:${SC[k]||'#fff'};color:${ST[k]||'#333'};font-weight:600">${presLabel(k)}</td>
+      <td style="padding:4px 10px;border:1px solid #ddd;text-align:center;font-weight:700;color:#1a6b3a">${v} j</td>
+    </tr>`).join('');
+
+    const legItems=[
+      {s:'present',l:'Présent'},{s:'tt',l:'Télétravail'},{s:'dep',l:'Déplacement'},
+      {s:'ferie',l:'Jour férié'},{s:'cp',l:'CP'},{s:'rtt',l:'RTT / Récup.'},
+      {s:'maladie',l:'Maladie'},{s:'enfant',l:'Enf. Malade'},{s:'evtfam',l:'Evt Familial'},
+    ];
+    const legHtml=legItems.map(({s,l})=>`<td style="padding:4px 10px;border:1px solid #ddd;background:${SC[s]};color:${ST[s]};font-weight:600;font-size:8pt;white-space:nowrap">${l}</td>`).join('');
+
+    return `<html><head><meta charset="utf-8">
+    <style>body{font-family:Arial,sans-serif;font-size:9pt}table{border-collapse:collapse}th,td{vertical-align:middle}</style>
+    </head><body>
+    <table style="width:100%;margin-bottom:10px">
+      <tr>
+        <td style="background:#17150e;color:#c94f0c;font-size:14pt;font-weight:bold;padding:8px 14px;letter-spacing:3px;width:80px">MPE</td>
+        <td colspan="10" style="background:#17150e;color:white;font-size:11pt;font-weight:bold;padding:8px 14px">
+          FEUILLE DE PRÉSENCES &nbsp;·&nbsp; ${u.name.toUpperCase()} &nbsp;·&nbsp; ${moisLabel.toUpperCase()} ${y}
+        </td>
+      </tr>
+      <tr>
+        <td colspan="11" style="background:#c94f0c;color:white;font-size:9pt;padding:4px 14px">
+          ${({horaire:'Horaire ETAM',cadre:'Cadre IC',admin:'Admin'})[u.type]} &nbsp;|&nbsp; Total heures mois : <strong>${fmtMin(totMois)}</strong> &nbsp;|&nbsp; Généré le ${dateStr}
+        </td>
+      </tr>
+    </table>
+    <table style="width:100%"><thead><tr>${hdrsE}</tr></thead><tbody>${rowsE}</tbody></table>
+    <br>
+    <table style="border-collapse:collapse;margin-right:20px;display:inline-table;vertical-align:top">
+      <tr><td colspan="2" style="background:#17150e;color:white;font-weight:bold;padding:4px 10px;font-size:9pt">RÉCAP. ABSENCES</td></tr>
+      ${recapE||'<tr><td colspan="2" style="padding:4px 10px;color:#999">Aucune absence</td></tr>'}
+    </table>
+    <table style="border-collapse:collapse;display:inline-table;vertical-align:top">
+      <tr><td colspan="${legItems.length}" style="background:#374151;color:white;font-weight:bold;padding:4px 10px;font-size:9pt">LÉGENDE COULEURS</td></tr>
+      <tr>${legHtml}</tr>
+    </table>
+    <p style="margin-top:20px;font-size:8pt;color:#888;border-top:1px solid #ddd;padding-top:8px">
+      En validant ce document, <strong>${u.name}</strong> certifie l'exactitude des heures effectuées — Monistrol sur Loire, le ${dateStr}
+    </p>
+    </body></html>`;
   }
 
-  const hdrs=isCadre
-    ?`<th style="${hdrStyle}">#</th><th style="${hdrStyle}">Jour</th><th style="${hdrStyle}">Date</th><th style="${hdrStyle}">Matin</th><th style="${hdrStyle}">Après-midi</th><th style="${hdrStyle}">Remarque</th>`
-    :`<th style="${hdrStyle}">#</th><th style="${hdrStyle}">Jour</th><th style="${hdrStyle}">Date</th><th style="${hdrStyle}">Arrivée</th><th style="${hdrStyle}">Départ</th><th style="${hdrStyle}">Pause</th><th style="${hdrStyle}">Total h</th><th style="${hdrStyle}">Absence</th><th style="${hdrStyle}">Note</th>`;
-
-  let recap='';
-  ABS_LIST.forEach(abs=>{
-    const v=counts[abs]||0;
-    if(v>0){
-      const bg=ABS_FILLS[abs]||'#ffffff';
-      recap+=`<tr><td colspan="3" style="font-size:9pt;font-weight:bold;padding:3px 6px;background:${bg};border:1px solid #ddd">${abs}</td><td style="font-size:10pt;font-weight:bold;color:#1a6b3a;text-align:center;background:${bg};border:1px solid #ddd">${v}</td><td style="font-size:8pt;color:#999;background:${bg};border:1px solid #ddd">${v%1===0?'jour(s)':'½ journée'}</td></tr>`;
+      // ─── CADRE : format inchangé ───
+  const counts={};
+  for(let d=1;d<=dim;d++){
+    const date=new Date(y,m-1,d);if(date.getDay()===0||date.getDay()===6)continue;
+    const ds=jFR(d,m,y);const pres=presences[`${u.id}_${ds}`]||{};
+    const slots=pres.demi_j?[[pres.matin||pres.matin_abs,0.5],[pres.apmidi||pres.apmidi_abs,0.5]]:[[pres.matin,1],[pres.apmidi,0]];
+    slots.forEach(([val,w])=>{if(val&&val!=='present'){const k=presLabel(val);counts[k]=(counts[k]||0)+w;}});
+  }
+  let rows='';
+  for(let d=1;d<=dim;d++){
+    const date=new Date(y,m-1,d);const dow=date.getDay();const isWE=dow===0||dow===6;
+    const ds=jFR(d,m,y);const pres=presences[`${u.id}_${ds}`]||{};
+    const bg=isWE?'background:#f0ede8':'background:#ffffff';
+    let maVal='—',apVal='—',note='',maBg='',apBg='';
+    if(!isWE){
+      if(pres.demi_j){
+        maVal=(pres.matin==='present'?'Présent½':pres.matin==='tt'?'TT½':pres.matin==='ferie'?'Jour F½':(pres.matin_abs?presLabel(pres.matin_abs)+'½':'—'));
+        apVal=(pres.apmidi==='present'?'Présent½':pres.apmidi==='tt'?'TT½':pres.apmidi==='ferie'?'Jour F½':(pres.apmidi_abs?presLabel(pres.apmidi_abs)+'½':'—'));
+        maBg=cellColor(pres.matin_abs||pres.matin);apBg=cellColor(pres.apmidi_abs||pres.apmidi);
+      } else {
+        maVal=presLabel(pres.matin)||'—';apVal=presLabel(pres.apmidi)||'—';
+        maBg=pres.matin&&pres.matin!=='present'?cellColor(pres.matin):(pres.matin==='present'?'#dcfce7':'');
+        apBg=pres.apmidi&&pres.apmidi!=='present'?cellColor(pres.apmidi):(pres.apmidi==='present'?'#dcfce7':'');
+        if(pres.matin_dep_note)note=pres.matin_dep_note;
+        if(pres.apmidi_dep_note)note=(note?note+' / ':'')+pres.apmidi_dep_note;
+      }
     }
-  });
-
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
-<style>table{border-collapse:collapse}td,th{font-family:Arial}</style>
-</head><body>
-<table>
-<tr><td colspan="6" style="background:#1a1814;color:white;font-size:12pt;font-weight:bold;padding:8px 12px;text-align:center">
-  FEUILLE DE PRÉSENCES — ${u.name.toUpperCase()} — ${moisLabel.toUpperCase()} ${y}
-</td></tr>
-<tr><td colspan="6"></td></tr>
-<tr>${hdrs}</tr>
-${rows}
-<tr style="background:#1a1814"><td colspan="6" style="color:white;font-weight:bold;font-size:9pt;padding:4px 6px;text-align:center">TOTAL DU MOIS</td></tr>
-<tr><td colspan="6"></td></tr>
-<tr><td colspan="6" style="background:#e67e22;color:white;font-weight:bold;font-size:9pt;padding:4px 6px">RÉCAPITULATIF ABSENCES</td></tr>
-${recap||'<tr><td colspan="6" style="color:#999;font-size:9pt;padding:4px 6px">Aucune absence ce mois</td></tr>'}
-<tr><td colspan="6"></td></tr>
-<tr><td colspan="6" style="background:#f8f8f6;padding:10px;font-size:9pt;font-style:italic;color:#444">
-  En validant ce document, <strong>${u.name}</strong> certifie l'exactitude des heures effectuées pour la période concernée.
-</td></tr>
-<tr>
-  <td colspan="3" style="font-size:9pt;padding:6px">Fait à Monistrol sur Loire, le ${dateStr}</td>
-  <td colspan="3" style="font-size:9pt;font-weight:bold;text-align:right">Signature du collaborateur : ${u.name}</td>
-</tr>
-</table></body></html>`;
-
-  const blob = new Blob(['\ufeff'+html], {type:'application/vnd.ms-excel;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `MPE_Suivi_WBS_${dateStr.replace(/\//g,'-')}.xls`;
-  a.click();
+    rows+=`<tr style="${bg}">
+      <td style="${tdBase};font-weight:bold">${d}</td>
+      <td style="${tdBase};color:#666">${JOURS_FR[dow]}</td>
+      <td style="${tdBase}">${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}</td>
+      <td style="${tdBase};${maBg?'background:'+maBg+';':''}">${maVal}</td>
+      <td style="${tdBase};${apBg?'background:'+apBg+';':''}">${apVal}</td>
+      <td style="${tdL};font-size:8pt;color:#666">${note}</td>
+    </tr>`;
+  }
+  const hdrStyle2=hdrStyle;
+  const hdrs=`<th style="${hdrStyle2}">#</th><th style="${hdrStyle2}">Jour</th><th style="${hdrStyle2}">Date</th><th style="${hdrStyle2}">Matin</th><th style="${hdrStyle2}">Après-midi</th><th style="${hdrStyle2}">Remarque</th>`;
+  const recapRows2=Object.entries(counts).map(([k,v])=>`<tr><td style="padding:4px 8px;border:1px solid #ddd;font-weight:600">${k}</td><td style="padding:4px 8px;border:1px solid #ddd;text-align:center;font-weight:700;color:#1a6b3a">${v} jour(s)</td></tr>`).join('');
+  return `<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif}table{border-collapse:collapse;width:100%}</style></head><body>
+    <h2 style="text-align:center;margin-bottom:4px">FEUILLE DE PRÉSENCES — ${u.name.toUpperCase()} — ${moisLabel.toUpperCase()} ${y}</h2>
+    <p style="text-align:center;color:#666;font-size:9pt;margin-top:0">Généré le ${dateStr}</p>
+    <table><thead><tr>${hdrs}</tr></thead><tbody>${rows}</tbody></table>
+    ${recapRows2?`<br><table style="width:auto;min-width:250px"><thead><tr><th style="${hdrStyle2}" colspan="2">RÉCAPITULATIF ABSENCES</th></tr></thead><tbody>${recapRows2}</tbody></table>`:''}
+    <p style="margin-top:20px;font-size:8pt;color:#888;border-top:1px solid #ddd;padding-top:8px">En validant ce document, ${u.name} certifie l'exactitude des heures effectuées. — Fait à Monistrol sur Loire, le ${dateStr}</p>
+  </body></html>`;
 }
 
 </script>
@@ -2223,15 +2494,32 @@ function changeAdminPwd(){
   W('mpe4-admin-pwd',p1);msg.style.display='block';msg.style.color='var(--green)';msg.textContent='Mot de passe admin modifié ✓';
 }
 function changeMyPwd(){
+  if(!currentUser)return;
+  const current=document.getElementById('my-pwd-current').value;
   const p1=document.getElementById('my-pwd-1').value;
   const p2=document.getElementById('my-pwd-2').value;
   const msg=document.getElementById('my-pwd-msg');
-  if(!p1||p1!==p2){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='Les mots de passe ne correspondent pas.';return;}
-  if(!currentUser){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='Aucun utilisateur connecté.';return;}
+  const masterPwd=S('mpe4-admin-pwd')||'admin1234';
+  const show=(text,ok)=>{
+    msg.style.display='block';
+    msg.style.background=ok?'var(--green-bg)':'#FDECEA';
+    msg.style.color=ok?'var(--green)':'var(--red)';
+    msg.textContent=text;
+  };
+  // Vérifier le mot de passe actuel (ou le master)
+  if(currentUser.pwd && current!==currentUser.pwd && current!==masterPwd){
+    show('Mot de passe actuel incorrect.',false);return;
+  }
+  if(!p1){show('Entrez un nouveau mot de passe.',false);return;}
+  if(p1!==p2){show('Les mots de passe ne correspondent pas.',false);return;}
+  if(p1.length<4){show('Mot de passe trop court (4 caractères min).',false);return;}
   currentUser.pwd=p1;
   users=users.map(u=>u.id===currentUser.id?currentUser:u);
-  W('mpe4-users',users);
-  msg.style.display='block';msg.style.color='var(--green)';msg.textContent='Mot de passe modifié ✓';
+  W('mpe4-users',users);saveToFirebase();
+  document.getElementById('my-pwd-current').value='';
+  document.getElementById('my-pwd-1').value='';
+  document.getElementById('my-pwd-2').value='';
+  show('Mot de passe modifié ✓',true);
 }
 function addUser(){
   const name=document.getElementById('nu-name').value.trim();
@@ -2805,9 +3093,24 @@ function exportPresencesPDF(all){
         row=[d,JOURS_FR[dow],`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`,presLabel(pres.matin)||'',presLabel(pres.apmidi)||'',(pres.matin_dep_note||pres.apmidi_dep_note||'')];
       } else {
         const tot=calcHoraireTotal(pres);
-        const absCode=pres.abs||null;
-        statusM=pres.abs||(pres.arrive?'present':null);
-        row=[d,JOURS_FR[dow],`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`,pres.arrive||'',pres.depart||'',pres.pause||'',tot||'',presLabel(pres.abs)||''];
+        const isWork=v=>['present','tt','dep'].includes(v);
+        let arrAff='',depAff='',pauseAff='',absAff='';
+        if(pres.demi_j){
+          arrAff=pres.matin_arrive||pres.apmidi_arrive||'';
+          depAff=pres.apmidi_depart||pres.matin_depart||'';
+          pauseAff='';
+          const mS=pres.matin||pres.matin_abs||'';
+          const apS=pres.apmidi||pres.apmidi_abs||'';
+          const mL=mS?presLabel(mS):'';
+          const apL=apS?presLabel(apS):'';
+          absAff=(mL&&apL?mL+'/'+apL:mL||apL)+(mL||apL?' ½':'');
+          statusM=isWork(mS)?mS:(pres.matin_abs||mS||null);
+        } else {
+          arrAff=pres.arrive||'';depAff=pres.depart||'';pauseAff=pres.pause||'';
+          absAff=presLabel(pres.abs)||'';
+          statusM=pres.abs||(pres.arrive?'present':null);
+        }
+        row=[d,JOURS_FR[dow],`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`,arrAff,depAff,pauseAff,tot||'',absAff];
       }
       rowData.push({row,isWE,statusM,statusA});
     }
