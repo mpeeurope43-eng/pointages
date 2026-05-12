@@ -2061,10 +2061,12 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
       if(!isWE&&isLastOuvre(di)){
         const wMin=weekMinForDay(di);
         if(wMin>0){
-          const diff=wMin-35*60;
-          if(diff>0){cumulTxt=`Exc. ${fmtMin(diff)}`;cumulStyle='background:#fee2e2;color:#b91c1c;font-weight:bold';}
-          else if(diff<0){cumulTxt=`Déf. ${fmtMin(-diff)}`;cumulStyle='background:#fef9c3;color:#92400e;font-weight:bold';}
-          else{cumulTxt='= 35h00';cumulStyle='background:#dcfce7;color:#166534;font-weight:bold';}
+          const over=wMin>35*60;
+          const warn=wMin>=30*60&&!over; // proche 35h si > 30h
+          cumulTxt=fmtMin(wMin);
+          cumulStyle=over?'background:#fee2e2;color:#b91c1c;font-weight:bold':
+                     warn?'background:#fef9c3;color:#92400e;font-weight:bold':
+                     'background:#dcfce7;color:#166534;font-weight:bold';
         }
       }
 
@@ -2097,7 +2099,7 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
       <th style="${hH('#1a4f8a')}">Arr. AP-M</th>
       <th style="${hH('#1a4f8a')}">Dép. AP-M</th>
       <th style="${hH('#1a6b3a')}">Total Jour</th>
-      <th style="${hH('#c94f0c')}">Cumul sem.<br>/ Hrs supp</th>
+      <th style="${hH('#c94f0c')}">Total<br>semaine</th>
       <th style="${hH('#374151')}">Note / Debug</th>`;
 
     const cntAbs={};
