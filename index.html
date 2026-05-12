@@ -3035,7 +3035,7 @@ function exportPresencesPDF(all){
       :['#','Jour','Date','Arr.Mat','Dép.Mat','Pause','Arr.APM','Dép.APM','Total','Absence','Note'];
 
     const rowData=[];
-    // Couleurs identiques à l'appli
+    const isWork2=v=>['present','tt','dep'].includes(v);
     const STATUS_FILL={
       'present': [234,244,238],  // --green-bg
       'tt':      [234,240,249],  // --blue-bg (télétravail = bleu)
@@ -3086,7 +3086,6 @@ function exportPresencesPDF(all){
         const isWork=v=>['present','tt','dep'].includes(v);
         let arrAff='',depAff='',pauseAff='',absAff='';
         if(pres.demi_j){
-          // ½ journée : mêmes règles que l'export xlsx
           const mS=pres.matin||pres.matin_abs||'';
           const apS=pres.apmidi||pres.apmidi_abs||'';
           if(isWork(mS)){arrAff=pres.matin_arrive||'';depAff=pres.matin_depart||'';}
@@ -3111,12 +3110,12 @@ function exportPresencesPDF(all){
           else{absAff=presLabel(s)||'';}
           statusM=pres.abs||(pres.arrive?'present':null);
         }
-        const isWork2=v=>['present','tt','dep'].includes(v);
+        const isWork3=v=>['present','tt','dep'].includes(v);
         let arr2Pdf='',dep2Pdf='',note='';
         if(pres.demi_j){
           const mS=pres.matin||pres.matin_abs||'';const apS=pres.apmidi||pres.apmidi_abs||'';
-          if(isWork2(mS)){arr2Pdf=pres.matin_arrive||'';dep2Pdf=pres.matin_depart||'';}
-          if(isWork2(apS)){arr2Pdf=arr2Pdf||pres.apmidi_arrive||'';dep2Pdf=pres.apmidi_depart||'';}
+          if(isWork3(mS)){arr2Pdf=pres.matin_arrive||'';dep2Pdf=pres.matin_depart||'';}
+          if(isWork3(apS)){arr2Pdf=arr2Pdf||pres.apmidi_arrive||'';dep2Pdf=pres.apmidi_depart||'';}
         } else {
           dep2Pdf=pres.depart||'';note=pres.dep_note||'';
         }
