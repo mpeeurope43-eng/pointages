@@ -2053,8 +2053,9 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
           if(isWork(apS)){arr2=pres.apmidi_arrive||'';dep2=pres.apmidi_depart||'';if(apS!=='present'){const cz=SC[apS];const tz=ST[apS];if(cz){cA2=`background:${cz};color:${tz};`;cD2=cA2;}}}
         } else {
           arr1=pres.arrive||'';dep2=pres.depart||'';
-          // Pause seulement si heures saisies
-          pause1=(pres.arrive&&pres.depart)?(pres.pause||'00:45'):'';
+          // Pause : uniquement si arrivée explicitement saisie (non vide, non 00:00)
+          const hasRealHours = arr1 && arr1 !== '00:00' && dep2 && dep2 !== '00:00';
+          pause1 = hasRealHours ? (pres.pause||'00:45') : '';
         }
       }
 
