@@ -3032,7 +3032,7 @@ function exportPresencesPDF(all){
 
     const cols=isCadre
       ?['#','Jour','Date','Matin','Après-midi','Remarque']
-      :['#','Jour','Date','Arr.','Dép.','Pause','Total','Absence'];
+      :['#','Jour','Date','Arr.Mat','Dép.Mat','Pause','Arr.APM','Dép.APM','Total','Absence','Note'];
 
     const rowData=[];
     // Couleurs identiques à l'appli
@@ -3086,21 +3086,41 @@ function exportPresencesPDF(all){
         const isWork=v=>['present','tt','dep'].includes(v);
         let arrAff='',depAff='',pauseAff='',absAff='';
         if(pres.demi_j){
-          arrAff=pres.matin_arrive||pres.apmidi_arrive||'';
-          depAff=pres.apmidi_depart||pres.matin_depart||'';
-          pauseAff='';
+          // ½ journée : mêmes règles que l'export xlsx
           const mS=pres.matin||pres.matin_abs||'';
           const apS=pres.apmidi||pres.apmidi_abs||'';
-          const mL=mS?presLabel(mS):'';
-          const apL=apS?presLabel(apS):'';
-          absAff=(mL&&apL?mL+'/'+apL:mL||apL)+(mL||apL?' ½':'');
+          if(isWork(mS)){arrAff=pres.matin_arrive||'';depAff=pres.matin_depart||'';}
+          if(isWork(apS)){
+            if(!arrAff){arrAff=pres.apmidi_arrive||'';}
+            depAff=pres.apmidi_depart||depAff;
+          }
+          pauseAff='';
+          const absM=!isWork(mS)&&mS?mS:'';
+          const absA=!isWork(apS)&&apS?apS:'';
+          absAff=(absM||absA)?presLabel(absM||absA)+' ½':'';
           statusM=isWork(mS)?mS:(pres.matin_abs||mS||null);
         } else {
-          arrAff=pres.arrive||'';depAff=pres.depart||'';pauseAff=pres.pause||'';
-          absAff=presLabel(pres.abs)||'';
+          const arr=pres.arrive||'';const dep=pres.depart||'';
+          const hasReal=arr&&arr!=='00:00'&&dep&&dep!=='00:00';
+          arrAff=arr;depAff=dep;
+          pauseAff=hasReal?(pres.pause||'00:45'):'';
+          // Abs. / statut
+          const s=pres.abs||'';
+          if(s==='tt'){absAff='Télétravail';}
+          else if(s==='dep'){absAff='Déplacement';}
+          else{absAff=presLabel(s)||'';}
           statusM=pres.abs||(pres.arrive?'present':null);
         }
-        row=[d,JOURS_FR[dow],`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`,arrAff,depAff,pauseAff,tot||'',absAff];
+        const isWork2=v=>['present','tt','dep'].includes(v);
+        let arr2Pdf='',dep2Pdf='',note='';
+        if(pres.demi_j){
+          const mS=pres.matin||pres.matin_abs||'';const apS=pres.apmidi||pres.apmidi_abs||'';
+          if(isWork2(mS)){arr2Pdf=pres.matin_arrive||'';dep2Pdf=pres.matin_depart||'';}
+          if(isWork2(apS)){arr2Pdf=arr2Pdf||pres.apmidi_arrive||'';dep2Pdf=pres.apmidi_depart||'';}
+        } else {
+          dep2Pdf=pres.depart||'';note=pres.dep_note||'';
+        }
+        row=[d,JOURS_FR[dow],`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`,arrAff,depAff,pauseAff,arr2Pdf,dep2Pdf,tot||'',absAff,note];
       }
       rowData.push({row,isWE,statusM,statusA});
     }
@@ -3108,38 +3128,34 @@ function exportPresencesPDF(all){
     doc.autoTable({
       startY:26,head:[cols],body:rowData.map(r=>r.row),
       margin:{left:8,right:8},
-      styles:{fontSize:7,cellPadding:1.5,lineWidth:0.1,lineColor:[210,210,210]},
-      headStyles:{fillColor:[23,21,14],textColor:255,fontStyle:'bold',fontSize:7,cellPadding:2},
+      styles:{fontSize:6.5,cellPadding:1.2,lineWidth:0.1,lineColor:[210,210,210]},
+      headStyles:{fillColor:[23,21,14],textColor:255,fontStyle:'bold',fontSize:6.5,cellPadding:2},
       didParseCell(data){
         if(data.section!=='body')return;
         const r=rowData[data.row.index];
-        if(r.isWE){
-          data.cell.styles.fillColor=[230,228,224];
-          data.cell.styles.textColor=[160,160,160];
-          return;
-        }
-        // Colonne matin (index 3) ou apmidi (index 4) pour cadres
-        // Colonne absence (index 7) ou toute la ligne pour horaires
+        if(r.isWE){data.cell.styles.fillColor=[230,228,224];data.cell.styles.textColor=[160,160,160];return;}
         if(isCadre){
           const st=data.column.index===3?r.statusM:data.column.index===4?r.statusA:null;
-          if(st&&STATUS_FILL[st]){
-            data.cell.styles.fillColor=STATUS_FILL[st];
-            data.cell.styles.textColor=STATUS_TEXT[st]||[23,21,14];
-            if(st!=='present')data.cell.styles.fontStyle='bold';
-          }
+          if(st&&STATUS_FILL[st]){data.cell.styles.fillColor=STATUS_FILL[st];data.cell.styles.textColor=STATUS_TEXT[st]||[23,21,14];if(st!=='present')data.cell.styles.fontStyle='bold';}
         } else {
-          if(r.statusM&&STATUS_FILL[r.statusM]){
-            data.cell.styles.fillColor=STATUS_FILL[r.statusM];
-            if(data.column.index===7&&r.statusM!=='present'){
-              data.cell.styles.textColor=STATUS_TEXT[r.statusM]||[23,21,14];
-              data.cell.styles.fontStyle='bold';
+          // TT/Dep pleine journée → colorer colonnes heures
+          const s=r.row[9]||''; // col 9 = absAff
+          if(s==='Télétravail'||s==='Déplacement'){
+            const ci=data.column.index;
+            if(ci>=3&&ci<=8){
+              const st2=s==='Télétravail'?'tt':'dep';
+              data.cell.styles.fillColor=STATUS_FILL[st2];data.cell.styles.textColor=STATUS_TEXT[st2];
             }
+          }
+          // Absence → colorier col 9+10
+          if(r.statusM&&!isWork2(r.statusM)&&STATUS_FILL[r.statusM]&&data.column.index>=9){
+            data.cell.styles.fillColor=STATUS_FILL[r.statusM];data.cell.styles.textColor=STATUS_TEXT[r.statusM]||[23,21,14];data.cell.styles.fontStyle='bold';
           }
         }
       },
       columnStyles:isCadre
         ?{0:{cellWidth:7,halign:'center'},1:{cellWidth:10},2:{cellWidth:17},3:{cellWidth:48},4:{cellWidth:48},5:{cellWidth:'auto'}}
-        :{0:{cellWidth:7,halign:'center'},1:{cellWidth:10},2:{cellWidth:17},3:{cellWidth:16,halign:'center'},4:{cellWidth:16,halign:'center'},5:{cellWidth:13,halign:'center'},6:{cellWidth:14,halign:'center'},7:{cellWidth:'auto'}}
+        :{0:{cellWidth:7,halign:'center'},1:{cellWidth:8},2:{cellWidth:15},3:{cellWidth:14,halign:'center'},4:{cellWidth:14,halign:'center'},5:{cellWidth:12,halign:'center'},6:{cellWidth:14,halign:'center'},7:{cellWidth:14,halign:'center'},8:{cellWidth:12,halign:'right'},9:{cellWidth:22},10:{cellWidth:'auto'}}
     });
 
     // Récap absences (horizontal pour gagner de la place)
