@@ -2083,21 +2083,6 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
         <td style="${tE()}${rowBg+rowTxt}font-weight:bold;${rowBg?`color:${ST[pres.abs]||'#1a6b3a'};`:'color:#1a6b3a;'}">${totTxt}</td>
         <td style="${tE()}${cumulStyle}">${cumulTxt}</td>
         <td style="${tE()}text-align:left;font-size:8pt;color:#555;font-style:italic;">${note}</td>
-        <td style="${tE()}font-size:7pt;color:#999;text-align:left">${(()=>{
-          if(isWE)return '';
-          const dbg=[];
-          const dbgPres=presences[u.id+'_'+dsI]||{};
-          dbg.push('id='+u.id);
-          dbg.push('demi_j='+dbgPres.demi_j);
-          if(dbgPres.demi_j){
-            dbg.push('mat='+dbgPres.matin+'/'+dbgPres.matin_arrive+'-'+dbgPres.matin_depart);
-            dbg.push('ap='+dbgPres.apmidi+'/'+dbgPres.apmidi_arrive+'-'+dbgPres.apmidi_depart);
-          } else {
-            dbg.push('abs='+dbgPres.abs+'/'+dbgPres.arrive+'-'+dbgPres.depart+'-'+dbgPres.pause);
-          }
-          dbg.push('min='+dayMin);
-          return dbg.join(' | ');
-        })()}</td>
       </tr>`;
     }
 
@@ -2113,7 +2098,7 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
       <th style="${hH('#1a4f8a')}">Dép. AP-M</th>
       <th style="${hH('#1a6b3a')}">Total Jour</th>
       <th style="${hH('#c94f0c')}">Cumul sem.<br>/ Hrs supp</th>
-      <th style="${hH('#374151')}">Note / Debug</th><th style="${hH('#374151')}">DEBUG</th>`;
+      <th style="${hH('#374151')}">Note / Debug</th>`;
 
     const cntAbs={};
     for(let di=1;di<=dim;di++){
