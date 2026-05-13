@@ -309,6 +309,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <div class="brand">
       <div class="brand-mark">MPE</div>
       <span class="brand-name">POINTAGES HEURES</span>
+      <span id="version-badge" style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--accent);background:var(--orange-bg,#fdf0ea);border:1px solid var(--accent);border-radius:8px;padding:1px 7px;margin-left:8px;letter-spacing:.5px;cursor:default" title="Cliquer pour vérifier les mises à jour">v1.0</span>
     </div>
     <div class="header-right">
       <div id="h35-counter" style="display:none"></div>
@@ -668,6 +669,32 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <button class="btn btn-primary" onclick="changeMyPwd()">Enregistrer</button>
     <div id="my-pwd-msg" style="font-size:12px;margin-top:8px;display:none;padding:8px 12px;border-radius:6px"></div>
   </div>
+  <div class="card" style="max-width:420px;margin-top:12px" id="card-abs-option">
+    <div class="card-title">📊 Options de calcul des heures</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+      Pour le <strong>cumul de la semaine</strong>, choisissez comment comptabiliser les jours d'absence.
+    </div>
+    <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+      <input type="checkbox" id="opt-count-abs" onchange="setAbsOption(this.checked)" style="margin-top:2px;width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px">Comptabiliser les absences comme heures travaillées</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.5">
+          <strong>Non coché</strong> : un jour d'absence = 0h dans le total semaine<br>
+          <strong>Coché</strong> : un jour d'absence = +7h automatique dans le total semaine
+        </div>
+      </div>
+    </label>
+    <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);margin-top:8px">
+      <input type="checkbox" id="opt-count-jf" onchange="setJFOption(this.checked)" style="margin-top:2px;width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px">Comptabiliser les jours fériés comme heures travaillées</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.5">
+          <strong>Non coché</strong> : un jour férié = 0h dans le total semaine<br>
+          <strong>Coché</strong> : un jour férié = +7h automatique dans le total semaine
+        </div>
+      </div>
+    </label>
+  </div>
 </div>
 
 <div id="page-admin" class="page">
@@ -943,7 +970,7 @@ const DEF_USERS=[
   {id:'u2',name:'Damien Cuoq',type:'admin',rate:120,pwd:'damiencuoq'},
   {id:'u3',name:'Evan Jarousse',type:'horaire',rate:100,pwd:'evanjarousse'},
   {id:'u4',name:'Damien Charreyre',type:'horaire',rate:100,pwd:'damiencharreyre'},
-  {id:'u5',name:'Aline Cavezzan',type:'cadre',rate:120,pwd:'alinecavezzan'},
+  {id:'u5',name:'Aline Cavezzan',type:'horaire',rate:100,pwd:'alinecavezzan'},
 ];
 const DEF_WBS=[
   {code:'0',label:'CHIFFRAGE'},
@@ -975,9 +1002,11 @@ const DEF_TASKS=[
 // ════════════════════════ STATE ════════════════════════
 const S=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}};
 const W=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
-// Auto-sync Firebase après chaque sauvegarde (debounce 1.5s)
+// Auto-sync Firebase — uniquement après que Firebase ait chargé les données
 let _fbSyncTimer=null;
+let _firebaseReady=false;
 const _autoSync=()=>{
+  if(!_firebaseReady)return; // pas de sync avant chargement Firebase
   clearTimeout(_fbSyncTimer);
   _fbSyncTimer=setTimeout(()=>saveToFirebase(),1500);
 };
@@ -999,6 +1028,17 @@ let isRunning=false,isPaused=false,timerStart=null,pauseAccum=0,pauseStart=null,
 
 // ════════════════════════ LOCK SCREEN ════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
+  // Récupérer la date du dernier déploiement GitHub
+  fetch('https://api.github.com/repos/mpeeurope43-eng/pointages/commits/main')
+    .then(r=>r.json()).then(data=>{
+      const badge=document.getElementById('version-badge');
+      if(badge&&data.commit?.author?.date){
+        const d=new Date(data.commit.author.date);
+        const dt=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+        badge.textContent=`v1.0 · ${dt}`;
+        badge.title=`Déployé le ${dt}`;
+      }
+    }).catch(()=>{});// Silencieux si hors ligne
   try{const sw=localStorage.getItem('mpe4-wbs');if(sw){const wb=JSON.parse(sw);if(wb.length&&wb[0].code.startsWith('-')){localStorage.removeItem('mpe4-wbs');wbsList=DEF_WBS;}}}catch(e){}
   populateLockUsers();
   // Ne pas auto-connecter — on veut la page d'accueil
@@ -1142,10 +1182,32 @@ function showPage(name,btn){
 }
 
 // ════════════════════════ USER UI ════════════════════════
+function setAbsOption(val){
+  if(!currentUser)return;
+  const idx=users.findIndex(u=>u.id===currentUser.id);
+  if(idx<0)return;
+  users[idx].countAbs=val;currentUser.countAbs=val;
+  WS('mpe4-users',users);renderPresences();
+}
+function setJFOption(val){
+  if(!currentUser)return;
+  const idx=users.findIndex(u=>u.id===currentUser.id);
+  if(idx<0)return;
+  users[idx].countJF=val;currentUser.countJF=val;
+  WS('mpe4-users',users);renderPresences();
+}
+
 function renderUserUI(){
   if(!currentUser)return;
   const el=document.getElementById('my-account-info');
   if(el&&currentUser)el.innerHTML=`Connecté en tant que <strong>${currentUser.name}</strong> — ${({cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Administrateur'})[currentUser.type]||currentUser.type}`;
+  // Option absences : visible uniquement pour les ETAM
+  const absCard=document.getElementById('card-abs-option');
+  if(absCard)absCard.style.display=currentUser?.type==='horaire'?'block':'none';
+  const absChk=document.getElementById('opt-count-abs');
+  if(absChk&&currentUser)absChk.checked=!!currentUser.countAbs;
+  const jfChk=document.getElementById('opt-count-jf');
+  if(jfChk&&currentUser)jfChk.checked=!!currentUser.countJF;
   const dot=document.getElementById('hdr-dot');
   dot.textContent=initials(currentUser.name);
   dot.className='user-dot '+(currentUser.type);
@@ -1176,6 +1238,9 @@ function update35hCounter(){
 // Cumul hebdo présences ETAM depuis les champs arrivée/départ
 function calcWeekPresHours(uid, weekStart){
   let total=0;
+  const u=users.find(x=>x.id===uid)||{};
+  const countAbs=!!u.countAbs;
+  const countJF=!!u.countJF;
   for(let i=0;i<5;i++){
     const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
     const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1185,6 +1250,25 @@ function calcWeekPresHours(uid, weekStart){
       const parts=t.match(/(\d+)h(\d+)/);
       if(parts)total+=(parseInt(parts[1])*60+parseInt(parts[2]))*60000;
       else{const h=t.match(/(\d+)h/);if(h)total+=parseInt(h[1])*3600000;}
+    } else {
+      // Jour férié
+      const isFerie=pres.abs==='ferie'||pres.matin==='ferie'||pres.apmidi==='ferie';
+      if(isFerie&&countJF){
+        if(pres.demi_j)total+=3.5*3600000;
+        else total+=7*3600000;
+      }
+      // Absence (non JF)
+      else if(countAbs&&!isFerie){
+        const isAbsDay=pres.abs&&!['present','tt','dep','ferie',''].includes(pres.abs);
+        const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ferie',''].includes(pres.matin_abs);
+        const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ferie',''].includes(pres.apmidi_abs);
+        if(pres.demi_j){
+          if(isAbsMatin)total+=3.5*3600000;
+          if(isAbsApmidi)total+=3.5*3600000;
+        } else if(isAbsDay){
+          total+=7*3600000;
+        }
+      }
     }
   }
   return total;
@@ -1236,15 +1320,8 @@ function renderPresences(){
 
     // ── Bandeau cumul semaine avant chaque Lundi (ETAM) ──
     if(dow===1 && currentUser.type==='horaire'){
-      // Calcule la semaine qui commence ce lundi
-      let weekMs=0;
-      for(let wd=0;wd<5;wd++){
-        const dn=new Date(y,m,d+wd);
-        const dds=`${dn.getFullYear()}-${String(dn.getMonth()+1).padStart(2,'0')}-${String(dn.getDate()).padStart(2,'0')}`;
-        const wp=presences[`${currentUser.id}_${dds}`]||{};
-        const t=calcHoraireTotal(wp);
-        if(t){const parts=t.match(/(\d+)h(\d+)/);if(parts)weekMs+=(parseInt(parts[1])*60+parseInt(parts[2]))*60000;else{const h=t.match(/(\d+)h/);if(h)weekMs+=parseInt(h[1])*3600000;}}
-      }
+      const mondayDate=new Date(y,m,d);
+      const weekMs=calcWeekPresHours(currentUser.id,mondayDate);
       const weekH=weekMs/3600000;
       const limit=HEURES_SEMAINE;
       const pct=Math.min(weekH/limit*100,100);
@@ -1252,7 +1329,6 @@ function renderPresences(){
       const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
       const icon=over?'⚠':warn?'⚡':'';
       const diffTxt=over?` +${fmtH(Math.abs(weekMs-limit*3600000))} ⚠`:'';
-      // Semaine numéro
       const firstDay=new Date(y,0,1);
       const wNum=Math.ceil(((date-firstDay)/86400000+firstDay.getDay()+1)/7);
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 8px;margin-top:8px;margin-bottom:2px;background:${over?'#fef2f2':warn?'#fff7ed':'var(--surface2)'};border-radius:8px;border:1px solid ${over?'#fca5a5':warn?'#fdba74':'var(--border)'}">
@@ -1266,13 +1342,19 @@ function renderPresences(){
     }
 
     if(isWE){
-      const weHas = presences[key] && (presences[key].matin||presences[key].apmidi||presences[key].abs);
-      html+=`<div class="presence-day" style="background:var(--surface2);opacity:${weHas?'1':'0.45'};cursor:pointer" onclick="weClick('${ds}','${dowLabel} ${d} ${mLabel}')">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:13px;font-weight:600;color:var(--muted)">${dowLabel} ${d} ${mLabel} <span style="font-size:10px;opacity:.6">(${dow===6?'Samedi':'Dimanche'})</span></span>
-          ${weHas?'<span style="font-size:10px;color:var(--accent)">✓</span>':'<span style="font-size:10px;color:var(--muted)">+ pointer</span>'}
-        </div>
-      </div>`;
+      const weHas = presences[key] && (presences[key].matin||presences[key].apmidi||presences[key].abs||presences[key].arrive);
+      if(_weOpen[ds]||weHas){
+        // Jour ouvert : rendu comme un jour normal
+        if(currentUser.type==='horaire'){html+=buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,false,true);}
+        else{html+=buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,false,true);}
+      } else {
+        html+=`<div class="presence-day" style="background:var(--surface2);opacity:0.45;cursor:pointer" onclick="weClick('${ds}','${dowLabel} ${d} ${mLabel}')">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:600;color:var(--muted)">${dowLabel} ${d} ${mLabel} <span style="font-size:10px;opacity:.6">(${dow===6?'Samedi':'Dimanche'})</span></span>
+            <span style="font-size:10px;color:var(--muted)">+ pointer</span>
+          </div>
+        </div>`;
+      }
       continue;
     }
     if(currentUser.type==='cadre'||currentUser.type==='admin'){html+=buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,isToday);}
@@ -1282,7 +1364,8 @@ function renderPresences(){
   renderMiniCal();
 }
 
-function buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
+function buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
+  const titleExtra=isWE?`<button onclick="_weOpen['${ds}']=false;renderPresences()" style="font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;font-family:inherit">✕ Fermer</button>`:'';
   const matin=pres.matin||'', apmidi=pres.apmidi||'';
   const maNote=pres.matin_dep_note||'', apNote=pres.apmidi_dep_note||'';
 
@@ -1334,7 +1417,8 @@ function setCadreSlot(key, half, val, ds){
 }
 
 
-function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
+function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
+  const titleExtra=isWE?`<button onclick="_weOpen['${ds}']=false;renderPresences()" style="font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;font-family:inherit">✕ Fermer</button>`:'';
   const totalH=calcHoraireTotal(pres);
   const isDemi = pres.demi_j === true;
 
@@ -1386,9 +1470,11 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday){
 
   return `<div class="presence-day" style="${dayBgH}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:13px;font-weight:600;${isToday?'color:var(--accent)':isFerieH?'color:#f97316;':''}">${dowLabel} ${d} ${mLabel}${isFerieH?' 🟠 Jour férié':''}</span>
+      <span style="font-size:13px;font-weight:600;${isToday?'color:var(--accent)':isFerieH?'color:#f97316;':isWE?'color:var(--muted)':''}">${dowLabel} ${d} ${mLabel}${isFerieH?' 🟠 Jour férié':isWE?' 🗓️':''}</span>
       <div style="display:flex;align-items:center;gap:8px">
         ${totalH?`<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);font-weight:600">${totalH}</span>`:''}
+        ${isWE?`<button onclick="weDelete('${key}','${ds}')" style="font-size:10px;color:var(--red);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;font-family:inherit">🗑</button>`:''}
+        ${titleExtra}
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;color:var(--muted)">
           <input type="checkbox" ${isDemi?'checked':''} onchange="setHoraireField('${key}','demi_j',this.checked,'${ds}')"> ½ journée
         </label>
@@ -2315,10 +2401,47 @@ function goToPresDay(ds){
   if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
-// Click week-end (ajout d'une présence spéciale)
+// Week-end : toggle inline
+const _weOpen={};
+
 function weClick(ds, label){
-  alert(`Saisie week-end : ${label}\n(fonctionnalité à venir)`);
+  if(!currentUser)return;
+  const dow=new Date(ds+'T12:00:00').getDay();
+  const dayName=dow===6?'Samedi':'Dimanche';
+  const pres=presences[`${currentUser.id}_${ds}`]||{};
+  const hasData=pres.arrive||pres.abs||pres.matin||pres.apmidi;
+
+  if(!_weOpen[ds]&&!hasData){
+    // Première ouverture → confirmation
+    const modal=document.createElement('div');
+    modal.style.cssText='position:fixed;inset:0;background:rgba(23,21,14,.7);z-index:999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+    modal.innerHTML=`<div style="background:var(--surface);border-radius:16px;padding:32px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+      <div style="font-size:28px;margin-bottom:12px">🗓️</div>
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px">${dayName} ${label.split(' ').slice(1).join(' ')}</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:24px">
+        Vous êtes sur le point de saisir des heures sur un <strong style="color:var(--ink)">${dayName.toLowerCase()}</strong>.<br>Ces heures seront comptabilisées dans votre total hebdomadaire.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button onclick="this.closest('[style*=position]').remove()" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit">Annuler</button>
+        <button onclick="this.closest('[style*=position]').remove();_weOpen['${ds}']=true;renderPresences()" style="flex:1;padding:10px;border:none;border-radius:8px;background:linear-gradient(135deg,#c94f0c,#e8621a);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(201,79,12,.3)">✓ Saisir les heures</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  } else {
+    _weOpen[ds]=!_weOpen[ds];
+    renderPresences();
+  }
 }
+
+function weDelete(key,ds){
+  delete presences[key];
+  _weOpen[ds]=false;
+  WS('mpe4-presences',presences);
+  renderPresences();
+}
+
+
 
 // ════════ CALENDRIER JOURNAL ════════
 let _calMode='week',_calOffset=0;
@@ -3254,6 +3377,7 @@ function exportParProjetPDF(){
 }
 
 window._mpeReload=function(){
+  _firebaseReady=true; // Firebase a chargé → les WS() peuvent maintenant syncer
   try{
     entries=S('mpe4-entries')||[];
     presences=S('mpe4-presences')||{};
