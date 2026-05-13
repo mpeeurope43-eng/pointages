@@ -1425,7 +1425,7 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
   const heuresBlock = `<div class="time-row">
     <div class="time-field-group"><label class="field-label">Arrivée</label><input class="field" type="time" value="${pres.arrive||''}" onchange="setHoraireField('${key}','arrive',this.value,'${ds}')"></div>
     <div class="time-field-group"><label class="field-label">Départ</label><input class="field" type="time" value="${pres.depart||''}" onchange="setHoraireField('${key}','depart',this.value,'${ds}')"></div>
-    <div class="time-field-group"><label class="field-label">Pause</label><input class="field" type="time" value="${pres.pause||'00:45'}" onchange="setHoraireField('${key}','pause',this.value,'${ds}')"></div>
+    <div class="time-field-group"><label class="field-label">Pause</label><input class="field" type="time" value="${pres.pause||'01:00'}" onchange="setHoraireField('${key}','pause',this.value,'${ds}')"></div>
   </div>`;
 
   // halfSlot : un demi-slot (matin ou après-midi)
@@ -1566,7 +1566,7 @@ function calcHoraireTotal(pres){
   if(!pres.arrive||!pres.depart)return '';
   // N'afficher que si c'est du temps de travail (ou pas de statut défini)
   if(pres.abs&&!['present','tt','dep'].includes(pres.abs))return '';
-  const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):timeToMs('00:45'),diff=d-a-p;
+  const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):timeToMs('01:00'),diff=d-a-p;
   if(diff<=0)return '';
   const h=Math.floor(diff/3600000),mn=Math.floor((diff%3600000)/60000);
   return `${h}h${String(mn).padStart(2,'0')}`;
@@ -2077,7 +2077,7 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
       // Journée complète
       const s=pr.abs||'';
       if(s&&!isWork(s))return 0;
-      const a=toMin(pr.arrive),d=toMin(pr.depart),p=toMin(pr.pause||'00:45');
+      const a=toMin(pr.arrive),d=toMin(pr.depart),p=toMin(pr.pause||'01:00');
       return(a&&d&&d>a)?Math.max(0,d-a-p):0;
     };
     // Cumul semaine contenant le jour di (index 1..dim)
@@ -2148,7 +2148,7 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
           arr1=pres.arrive||'';dep2=pres.depart||'';
           // Pause : uniquement si arrivée explicitement saisie (non vide, non 00:00)
           const hasRealHours = arr1 && arr1 !== '00:00' && dep2 && dep2 !== '00:00';
-          pause1 = hasRealHours ? (pres.pause||'00:45') : '';
+          pause1 = hasRealHours ? (pres.pause||'01:00') : '';
         }
       }
 
@@ -3239,7 +3239,7 @@ function exportPresencesPDF(all){
           const arr=pres.arrive||'';const dep=pres.depart||'';
           const hasReal=arr&&arr!=='00:00'&&dep&&dep!=='00:00';
           arrAff=arr;depAff=dep;
-          pauseAff=hasReal?(pres.pause||'00:45'):'';
+          pauseAff=hasReal?(pres.pause||'01:00'):'';
           const s=pres.abs||'';
           // TT, Déplacement et Présent = travail → colonne Absence vide
           if(s===''||s==='present'||s==='tt'||s==='dep'){absAff='';}
