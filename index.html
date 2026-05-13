@@ -491,6 +491,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <button class="chip on" onclick="setProjTab('liste',this)">📋 Liste projets</button>
     <button class="chip" onclick="setProjTab('nouveau',this)">➕ Nouveau projet</button>
     <button class="chip" onclick="setProjTab('wbs',this)">🗂 WBS / Tâches</button>
+    <button class="chip" onclick="setProjTab('suivi',this)">📊 Suivi projet</button>
   </div>
 
   <!-- Tab: Liste -->
@@ -556,10 +557,28 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       </div>
     </div>
   </div>
+  <!-- Tab: Suivi projet -->
+  <div id="proj-tab-suivi" style="display:none">
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+      <div class="field-group" style="margin:0;flex:1;min-width:200px">
+        <label class="field-label">Projet</label>
+        <select class="field" id="suivi-proj-sel" onchange="renderSuivi()">
+          <option value="">— Sélectionner un projet —</option>
+        </select>
+      </div>
+      <div class="field-group" style="margin:0">
+        <label class="field-label">Période</label>
+        <select class="field" id="suivi-period" onchange="renderSuivi()">
+          <option value="all">Tout</option>
+          <option value="month">Ce mois</option>
+          <option value="year">Cette année</option>
+        </select>
+      </div>
+    </div>
+    <div id="suivi-content"></div>
+  </div>
 
 </div>
-
-<!-- ═══ STATS ═══ -->
 <div id="page-stats" class="page">
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-lbl">Aujourd'hui</div><div class="kpi-val" id="kpi-d">0.0h</div></div>
@@ -2783,6 +2802,127 @@ function setProjTab(tab,btn){
   btn.classList.add('on');
   if(tab==='liste')renderProjList();
   if(tab==='wbs'){renderWbsList();renderTaskList();}
+  if(tab==='suivi'){
+    const sel=document.getElementById('suivi-proj-sel');
+    if(sel){sel.innerHTML='<option value="">— Sélectionner un projet —</option>'+projects.map(p=>`<option value="${p.code}">${p.code} · ${p.label}</option>`).join('');}
+    renderSuivi();
+  }
+}
+
+function renderSuivi(){
+  const projCode=document.getElementById('suivi-proj-sel')?.value;
+  const period=document.getElementById('suivi-period')?.value||'all';
+  const el=document.getElementById('suivi-content');
+  if(!el)return;
+
+  if(!projCode){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Sélectionnez un projet pour voir le détail</div></div>';
+    return;
+  }
+
+  const now=new Date();
+  const projEntries=entries.filter(e=>{
+    if(e.project!==projCode)return false;
+    if(period==='month'){const d=new Date(e.date);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();}
+    if(period==='year'){const d=new Date(e.date);return d.getFullYear()===now.getFullYear();}
+    return true;
+  });
+
+  if(!projEntries.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">⏱</div><div class="empty-text">Aucun pointage pour ce projet sur cette période</div></div>';
+    return;
+  }
+
+  const fmtH2=ms=>{const h=Math.floor(ms/3600000),mn=Math.floor((ms%3600000)/60000);return mn>0?`${h}h${String(mn).padStart(2,'0')}`:`${h}h`;};
+  const totalMs=projEntries.reduce((s,e)=>s+e.ms,0);
+
+  // Par WBS global
+  const byWbs={};
+  projEntries.forEach(e=>{
+    const wKey=e.wbs||'—';
+    if(!byWbs[wKey])byWbs[wKey]=0;
+    byWbs[wKey]+=e.ms;
+  });
+
+  // Par utilisateur
+  const byUser={};
+  projEntries.forEach(e=>{
+    if(!byUser[e.userId])byUser[e.userId]={ms:0,byWbs:{}};
+    byUser[e.userId].ms+=e.ms;
+    const wKey=e.wbs||'—';
+    if(!byUser[e.userId].byWbs[wKey])byUser[e.userId].byWbs[wKey]={ms:0,byTask:{}};
+    byUser[e.userId].byWbs[wKey].ms+=e.ms;
+    const tKey=e.task||'—';
+    if(!byUser[e.userId].byWbs[wKey].byTask[tKey])byUser[e.userId].byWbs[wKey].byTask[tKey]=0;
+    byUser[e.userId].byWbs[wKey].byTask[tKey]+=e.ms;
+  });
+
+  const wbsLbl=code=>{const w=wbsList.find(x=>x.code===code);return w?`${code} · ${w.label}`:code;};
+
+  el.innerHTML=`
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+    <div class="card" style="flex:1;min-width:120px;text-align:center;padding:16px">
+      <div style="font-size:26px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--accent)">${fmtH2(totalMs)}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px">Total projet</div>
+    </div>
+    <div class="card" style="flex:1;min-width:120px;text-align:center;padding:16px">
+      <div style="font-size:26px;font-weight:700;color:var(--ink)">${Object.keys(byUser).length}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px">Collaborateurs</div>
+    </div>
+    <div class="card" style="flex:1;min-width:120px;text-align:center;padding:16px">
+      <div style="font-size:26px;font-weight:700;color:var(--ink)">${projEntries.length}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px">Saisies</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">📊 Répartition par WBS</div>
+    ${Object.entries(byWbs).sort((a,b)=>b[1]-a[1]).map(([wbs,ms])=>{
+      const pct=Math.round(ms/totalMs*100);
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
+          <span style="color:var(--ink)">${wbsLbl(wbs)}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent)">${fmtH2(ms)} <span style="color:var(--muted);font-weight:400">${pct}%</span></span>
+        </div>
+        <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:3px"></div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div class="card">
+    <div class="card-title">👥 Détail par collaborateur</div>
+    ${Object.entries(byUser).sort((a,b)=>b[1].ms-a[1].ms).map(([uid,data])=>{
+      const u=users.find(x=>x.id===uid);
+      const ini=u?u.name.split(' ').map(n=>n[0]).join('').substring(0,2):'?';
+      const pct=Math.round(data.ms/totalMs*100);
+      return `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${ini}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px">${u?u.name:'Inconnu'}</div>
+            <div style="font-size:11px;color:var(--muted)">${pct}% du total</div>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:var(--accent)">${fmtH2(data.ms)}</div>
+        </div>
+        ${Object.entries(data.byWbs).sort((a,b)=>b[1].ms-a[1].ms).map(([wbs,wd])=>`
+          <div style="margin-left:44px;margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+              <span style="color:var(--muted)">${wbsLbl(wbs)}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink);font-weight:600">${fmtH2(wd.ms)}</span>
+            </div>
+            ${Object.entries(wd.byTask).sort((a,b)=>b[1]-a[1]).map(([task,tms])=>`
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding-left:10px;border-left:2px solid var(--border);margin-bottom:2px">
+                <span>${task}</span>
+                <span style="font-family:'IBM Plex Mono',monospace">${fmtH2(tms)}</span>
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 function setProjFilter(f,btn){
   _projFilter=f;
