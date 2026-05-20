@@ -84,6 +84,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .pres-btn.active-present{background:#dcfce7;border-color:#22c55e;color:#166534;font-weight:700}
 .active-tt{background:#e0f2fe;border-color:#0ea5e9;color:#0369a1;font-weight:700}
 .active-dep{background:#ede9fe;border-color:#8b5cf6;color:#5b21b6;font-weight:700}
+.active-ecole{background:#fef9c3;border-color:#ca8a04;color:#854d0e;font-weight:700}
 .active-ferie{background:#ffedd5;border-color:#f97316;color:#9a3412;font-weight:700}
 .active-absent{background:#fee2e2;border-color:#ef4444;color:#991b1b;font-weight:700}
 .pres-btn.active-cp,.pres-btn.active-rtt{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
@@ -212,7 +213,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .pmc-dots{display:flex;gap:1px;justify-content:center}
 .pmc-dot{width:5px;height:5px;border-radius:50%}
 .dot-present{background:#22c55e}.dot-tt{background:#3b82f6}.dot-dep{background:#8b5cf6}.dot-ferie{background:#f97316}.dot-absent{background:#ef4444}
-.dot-present{background:#22c55e}.dot-tt{background:#0ea5e9}.dot-dep{background:#8b5cf6}.dot-ferie{background:#f97316}.dot-absent{background:#ef4444}.dot-ferie{background:#6366f1}
+.dot-present{background:#22c55e}.dot-tt{background:#0ea5e9}.dot-dep{background:#8b5cf6}.dot-ecole{background:#ca8a04}.dot-ferie{background:#f97316}.dot-absent{background:#ef4444}.dot-ferie{background:#6366f1}
 .pmc-leg{padding:7px;border-top:1px solid var(--border)}
 .pmc-li{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--ink2);margin-bottom:2px}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -324,12 +325,12 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     </div>
   </div>
   <div class="nav" id="main-nav">
-    <button class="nav-btn active" onclick="showPage('presences',this)">📅 Présences</button>
-    <button class="nav-btn" onclick="showPage('pointage',this)">⏱ Pointage</button>
-    <button class="nav-btn" onclick="showPage('journal',this)">📋 Journal</button>
-    <button class="nav-btn" onclick="showPage('stats',this)">📊 Stats</button>
-    <button class="nav-btn" onclick="showPage('export',this)">⬇ Export</button>
-    <button class="nav-btn" onclick="showPage('projets',this)">📁 Projets</button>
+    <button class="nav-btn active" id="nav-presences" onclick="showPage('presences',this)">📅 Présences</button>
+    <button class="nav-btn" id="nav-pointage" onclick="showPage('pointage',this)">⏱ Pointage</button>
+    <button class="nav-btn" id="nav-journal" onclick="showPage('journal',this)">📋 Journal</button>
+    <button class="nav-btn" id="nav-stats" onclick="showPage('stats',this)">📊 Stats</button>
+    <button class="nav-btn" id="nav-export" onclick="showPage('export',this)">⬇ Export</button>
+    <button class="nav-btn" id="nav-projets" onclick="showPage('projets',this)">📁 Projets</button>
     <button class="nav-btn" id="nav-compte" onclick="showPage('compte',this)">👤 Mon compte</button>
     <button class="nav-btn" id="nav-admin" style="display:none" onclick="showPage('admin',this)">⚙ Admin</button>
   </div>
@@ -750,6 +751,8 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         <select class="field" id="nu-type" style="flex:1;min-width:100px">
           <option value="cadre">Cadre (IC)</option>
           <option value="horaire">Horaire (ETAM)</option>
+          <option value="alternant">Alternant</option>
+          <option value="presta">Prestataire</option>
           <option value="admin">Admin</option>
         </select>
         <button class="btn-add" onclick="addUser()">+</button>
@@ -969,6 +972,7 @@ const ABSENCES_TRAVAIL = [
   {code:'present',  label:'✓ Présent',   cls:'active-present'},
   {code:'tt',       label:'Télétravail', cls:'active-tt'},
   {code:'dep',      label:'Déplacement', cls:'active-dep'},
+  {code:'ecole',    label:'École',       cls:'active-ecole'},
   {code:'ferie',    label:'Jour férié',  cls:'active-ferie'},
 ];
 const ABSENCES_MOTIF = [
@@ -1072,8 +1076,8 @@ function populateLockUsers(){
   if(sel){sel.innerHTML=users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');if(currentUser)sel.value=currentUser.id;}
   // Cartes landing page
   const cards=document.getElementById('lock-user-cards');if(!cards)return;
-  const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c'};
-  const TL={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Admin'};
+  const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c',alternant:'#7c3aed',presta:'#0e7490'};
+  const TL={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Admin',alternant:'Alternant',presta:'Prestataire'};
   // N'afficher que les utilisateurs actifs sur la page d'accueil
   const activeUsers=users.filter(u=>u.active!==false);
   cards.innerHTML=activeUsers.map(u=>`<div onclick="lockSelectUser('${u.id}')" data-uid="${u.id}"
@@ -1093,7 +1097,7 @@ function lockSelectUser(uid){
     if(c.dataset.uid===uid){c.style.background='rgba(201,79,12,.15)';c.style.borderColor='rgba(201,79,12,.6)';c.style.transform='translateY(-2px)';}
     else{c.style.background='rgba(255,255,255,.04)';c.style.borderColor='rgba(255,255,255,.08)';c.style.transform='none';}
   });
-  const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c'};
+  const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c',alternant:'#7c3aed',presta:'#0e7490'};
   const info=document.getElementById('lock-selected-info');
   if(info)info.innerHTML=`<div style="width:38px;height:38px;border-radius:50%;background:${TC[u.type]||'#555'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;font-family:'IBM Plex Mono',monospace;flex-shrink:0">${initials(u.name)}</div><div><div style="font-size:13px;font-weight:700;color:#fff">${u.name}</div><div style="font-size:10px;color:rgba(255,255,255,.35);font-family:'IBM Plex Mono',monospace;margin-top:2px">${u.type.toUpperCase()}</div></div>`;
   const panel=document.getElementById('lock-pwd-panel');
@@ -1218,22 +1222,48 @@ function setJFOption(val){
 
 function renderUserUI(){
   if(!currentUser)return;
+  const TYPE_LABELS={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Administrateur',alternant:'Alternant',presta:'Prestataire'};
+  const isHoraire=['horaire','alternant'].includes(currentUser.type);
+  const isAdmin=currentUser.type==='admin';
+  const isPresta=currentUser.type==='presta';
+
   const el=document.getElementById('my-account-info');
-  if(el&&currentUser)el.innerHTML=`Connecté en tant que <strong>${currentUser.name}</strong> — ${({cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Administrateur'})[currentUser.type]||currentUser.type}`;
-  // Option absences : visible uniquement pour les ETAM
+  if(el)el.innerHTML=`Connecté en tant que <strong>${currentUser.name}</strong> — ${TYPE_LABELS[currentUser.type]||currentUser.type}`;
+
+  // Options absences : ETAM + Alternant
   const absCard=document.getElementById('card-abs-option');
-  if(absCard)absCard.style.display=currentUser?.type==='horaire'?'block':'none';
+  if(absCard)absCard.style.display=isHoraire?'block':'none';
   const absChk=document.getElementById('opt-count-abs');
-  if(absChk&&currentUser)absChk.checked=!!currentUser.countAbs;
+  if(absChk)absChk.checked=!!currentUser.countAbs;
   const jfChk=document.getElementById('opt-count-jf');
-  if(jfChk&&currentUser)jfChk.checked=!!currentUser.countJF;
-  const dot=document.getElementById('hdr-dot');
-  dot.textContent=initials(currentUser.name);
-  dot.className='user-dot '+(currentUser.type);
+  if(jfChk)jfChk.checked=!!currentUser.countJF;
+
+  // Section changement MDP : masquée pour Presta
+  const pwdCard=document.querySelector('#page-compte .card:first-child');
+  if(pwdCard)pwdCard.style.display=isPresta?'none':'block';
+
+  // Nav : accès selon type
+  const navRules={
+    presences: true,
+    pointage:  true,
+    journal:   true,
+    stats:     true,
+    export:    !isPresta,
+    projets:   true,
+    compte:    true,
+    admin:     isAdmin,
+  };
+  Object.entries(navRules).forEach(([page,show])=>{
+    const btn=document.getElementById('nav-'+page);
+    if(btn)btn.style.display=show?'':'none';
+  });
+
+  document.getElementById('hdr-dot').textContent=initials(currentUser.name);
+  document.getElementById('hdr-dot').className='user-dot '+currentUser.type;
   document.getElementById('hdr-name').textContent=currentUser.name;
-  document.getElementById('hdr-type').textContent=currentUser.type==='cadre'?'Cadre (IC)':currentUser.type==='admin'?'Admin':'Horaire (ETAM)';
-  document.getElementById('nav-admin').style.display=currentUser.type==='admin'?'block':'none';
-  
+  document.getElementById('hdr-type').textContent=TYPE_LABELS[currentUser.type]||currentUser.type;
+  document.getElementById('admin-export-block').style.display=isAdmin?'block':'none';
+  update35hCounter();
 }
 function renderExportAdmin(){
   document.getElementById('admin-export-block').style.display=currentUser&&currentUser.type==='admin'?'block':'none';
@@ -1242,7 +1272,7 @@ function renderExportAdmin(){
 // ════════════════════════ COMPTEUR 35H ════════════════════════
 function update35hCounter(){
   const el=document.getElementById('h35-counter');
-  if(!currentUser||currentUser.type!=='horaire'){el.style.display='none';return;}
+  if(!currentUser||!['horaire','alternant'].includes(currentUser.type)){el.style.display='none';return;}
   const weekMs=filterEntries('week').filter(e=>e.userId===currentUser.id).reduce((s,e)=>s+e.ms,0);
   const weekH=weekMs/3600000;
   const limit=HEURES_SEMAINE;
@@ -1278,9 +1308,9 @@ function calcWeekPresHours(uid, weekStart){
       }
       // Absence (non JF)
       else if(countAbs&&!isFerie){
-        const isAbsDay=pres.abs&&!['present','tt','dep','ferie',''].includes(pres.abs);
-        const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ferie',''].includes(pres.matin_abs);
-        const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ferie',''].includes(pres.apmidi_abs);
+        const isAbsDay=pres.abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.abs);
+        const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.matin_abs);
+        const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.apmidi_abs);
         if(pres.demi_j){
           if(isAbsMatin)total+=3.5*3600000;
           if(isAbsApmidi)total+=3.5*3600000;
@@ -1338,7 +1368,7 @@ function renderPresences(){
     const isToday=ds===todayStr();
 
     // ── Bandeau cumul semaine avant chaque Lundi (ETAM) ──
-    if(dow===1 && currentUser.type==='horaire'){
+    if(dow===1 && ['horaire','alternant'].includes(currentUser.type)){
       const mondayDate=new Date(y,m,d);
       const weekMs=calcWeekPresHours(currentUser.id,mondayDate);
       const weekH=weekMs/3600000;
@@ -1364,7 +1394,7 @@ function renderPresences(){
       const weHas = presences[key] && (presences[key].matin||presences[key].apmidi||presences[key].abs||presences[key].arrive);
       if(_weOpen[ds]||weHas){
         // Jour ouvert : rendu comme un jour normal
-        if(currentUser.type==='horaire'){html+=buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,false,true);}
+        if(['horaire','alternant'].includes(currentUser.type)){html+=buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,false,true);}
         else{html+=buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,false,true);}
       } else {
         html+=`<div class="presence-day" style="background:var(--surface2);opacity:0.45;cursor:pointer" onclick="weClick('${ds}','${dowLabel} ${d} ${mLabel}')">
@@ -1376,8 +1406,8 @@ function renderPresences(){
       }
       continue;
     }
-    if(currentUser.type==='cadre'||currentUser.type==='admin'){html+=buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,isToday);}
-    else{html+=buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday);}
+    if(currentUser.type==='cadre'||currentUser.type==='admin'||currentUser.type==='presta'){html+=buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,isToday);}
+    else{html+=buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday);} // horaire + alternant
   }
   list.innerHTML=html;
   renderMiniCal();
@@ -1388,7 +1418,7 @@ function buildCadreDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
   const matin=pres.matin||'', apmidi=pres.apmidi||'';
   const maNote=pres.matin_dep_note||'', apNote=pres.apmidi_dep_note||'';
 
-  const isAbsent = (v) => v && !['present','tt','dep','ferie'].includes(v);
+  const isAbsent = (v) => v && !['present','tt','dep','ecole','ferie'].includes(v);
   const slot = (half, val, noteVal) => `
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">
       ${ABSENCES_TRAVAIL.map(a=>`<button class="pres-btn ${val===a.code?a.cls:''}" onclick="setCadreSlot('${key}','${half}','${a.code}','${ds}')">${a.label}</button>`).join('')}
@@ -1438,6 +1468,8 @@ function setCadreSlot(key, half, val, ds){
 
 function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
   const titleExtra=isWE?`<button onclick="_weOpen['${ds}']=false;renderPresences()" style="font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;font-family:inherit">✕ Fermer</button>`:'';
+  // ETAM : pas d'École. Alternant : École inclus
+  const ABS_TRAVAIL_USER=currentUser?.type==='horaire'?ABSENCES_TRAVAIL.filter(a=>a.code!=='ecole'):ABSENCES_TRAVAIL;;
   const totalH=calcHoraireTotal(pres);
   const isDemi = pres.demi_j === true;
 
@@ -1451,11 +1483,11 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
   // presVal = 'present' si présent, absVal = code absence
   // Les deux sont mutuellement exclusifs
   const halfSlot = (slot, absSlot, arrKey, depKey, noteKey, arrVal, depVal, noteVal, presVal, absVal) => {
-    const needsTime = ['present','tt'].includes(presVal) || ['present','tt'].includes(absVal) || absVal==='dep';
+    const needsTime = ['present','tt','dep','ecole'].includes(presVal) || ['present','tt','dep','ecole'].includes(absVal);
     return `
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
-      ${ABSENCES_TRAVAIL.map(a=>`<button class="pres-btn ${(presVal===a.code||absVal===a.code)?a.cls:''}" onclick="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}','${a.code}')">${a.label}</button>`).join('')}
-      <button class="pres-btn ${absVal&&!['present','tt','dep','ferie'].includes(absVal)?'active-absent':''}" onclick="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}','absent')">Absent</button>
+      ${ABS_TRAVAIL_USER.map(a=>`<button class="pres-btn ${(presVal===a.code||absVal===a.code)?a.cls:''}" onclick="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}','${a.code}')">${a.label}</button>`).join('')}
+      <button class="pres-btn ${absVal&&!['present','tt','dep','ecole','ferie'].includes(absVal)?'active-absent':''}" onclick="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}','absent')">Absent</button>
       ${presVal||absVal?`<button class="pres-btn" onclick="setHoraireHalf('${key}','${slot}','clear','${absSlot}','${ds}')" style="color:var(--red)">✕</button>`:''}
     </div>
     ${absVal&&!['present','tt','dep','ferie'].includes(absVal)?`<select class="field" style="font-size:11px;margin-bottom:5px" onchange="setHoraireHalf('${key}','${slot}','abs','${absSlot}','${ds}',this.value)">
@@ -1501,21 +1533,21 @@ function buildHoraireDay(d,m,ds,key,pres,dowLabel,mLabel,isToday,isWE=false){
     </div>
     ${isDemi ? demiBlock : `
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
-      ${ABSENCES_TRAVAIL.map(a=>`<button class="pres-btn ${pres.abs===a.code?a.cls:''}" onclick="setHoraireAbs('${key}','${a.code}','${ds}')">${a.label}</button>`).join('')}
-      <button class="pres-btn ${pres.abs&&!['present','tt','dep','ferie'].includes(pres.abs)?'active-absent':''}" onclick="setHoraireAbs('${key}','absent','${ds}')">Absent</button>
+      ${ABS_TRAVAIL_USER.map(a=>`<button class="pres-btn ${pres.abs===a.code?a.cls:''}" onclick="setHoraireAbs('${key}','${a.code}','${ds}')">${a.label}</button>`).join('')}
+      <button class="pres-btn ${pres.abs&&!['present','tt','dep','ecole','ferie'].includes(pres.abs)?'active-absent':''}" onclick="setHoraireAbs('${key}','absent','${ds}')">Absent</button>
       ${pres.abs?`<button class="pres-btn" onclick="setHoraireAbs('${key}','','${ds}')" style="color:var(--red)">✕</button>`:''}
     </div>
-    ${pres.abs&&!['present','tt','dep','ferie'].includes(pres.abs)?`<select class="field" style="margin-bottom:8px" onchange="setHoraireAbs('${key}',this.value,'${ds}')">
+    ${pres.abs&&!['present','tt','dep','ecole','ferie'].includes(pres.abs)?`<select class="field" style="margin-bottom:8px" onchange="setHoraireAbs('${key}',this.value,'${ds}')">
       <option value="absent">— Motif —</option>
       ${ABSENCES_MOTIF.map(a=>`<option value="${a.code}" ${pres.abs===a.code?'selected':''}>${a.label}</option>`).join('')}
     </select>`:''}
-    ${(!pres.abs||['present','tt','dep'].includes(pres.abs))?heuresBlock:''}
+    ${(!pres.abs||['present','tt','dep','ecole'].includes(pres.abs))?heuresBlock:''}
     ${pres.abs==='dep'?`<div style="margin-top:6px"><input class="field" type="text" value="${pres.dep_note||''}" placeholder="Destination / note déplacement" onchange="setHoraireField('${key}','dep_note',this.value,'${ds}')"></div>`:''}
     ${pres.abs==='evtfam'?`<select class="field" style="margin-top:6px" onchange="setHoraireField('${key}','evtfam_type',this.value,'${ds}')">
       <option value="">— Type d'événement familial —</option>
       ${EVT_FAMILIAUX.map(e=>`<option value="${e.code}" ${pres.evtfam_type===e.code?'selected':''}>${e.label} (${e.jours} jour(s))</option>`).join('')}
     </select>`:''}
-    ${isToday&&(!pres.abs||['present','tt','dep'].includes(pres.abs))?`<div style="display:flex;gap:6px;margin-top:8px">
+    ${isToday&&(!pres.abs||['present','tt','dep','ecole'].includes(pres.abs))?`<div style="display:flex;gap:6px;margin-top:8px">
       <button class="btn btn-green btn-sm" onclick="setArriveNow('${key}','${ds}')">⏰ Arrivée</button>
       <button class="btn btn-ghost btn-sm" onclick="setDepartNow('${key}','${ds}')">🚪 Départ</button>
     </div>`:''}
@@ -1532,15 +1564,15 @@ function setHoraireHalf(key,slot,action,absSlot,ds,absCode){
     presences[key][slot+'_arrive']='';
     presences[key][slot+'_depart']='';
   } else if(action==='abs'){
-    if(['present','tt'].includes(absCode)){
-      // Présent et Télétravail → stocké dans slot (presVal)
+    if(['present','tt','dep','ecole'].includes(absCode)){
+      // Travail (présent/TT/déplacement/école) → stocké dans slot
       presences[key][slot]=absCode;
       presences[key][absSlot]='';
     } else {
       // Absence → stocké dans absSlot
       presences[key][slot]='';
       presences[key][absSlot]=absCode;
-      if(absCode!=='dep'){
+      if(true){
         presences[key][slot+'_arrive']='';
         presences[key][slot+'_depart']='';
       }
@@ -1553,7 +1585,7 @@ function setHoraireHalf(key,slot,action,absSlot,ds,absCode){
 
 function setPresence(key,slot,val,ds){if(!presences[key])presences[key]={};presences[key][slot]=val;
   setTimeout(renderMiniCal,50);WS('mpe4-presences',presences);renderPresences();}
-function setHoraireAbs(key,code,ds){if(!presences[key])presences[key]={};presences[key].abs=code;if(code&&code!=='dep'){presences[key].arrive='';presences[key].depart='';}WS('mpe4-presences',presences);renderPresences();}
+function setHoraireAbs(key,code,ds){if(!presences[key])presences[key]={};presences[key].abs=code;if(code&&!['dep','ecole'].includes(code)){presences[key].arrive='';presences[key].depart='';}WS('mpe4-presences',presences);renderPresences();}
 function setHoraireField(key,field,val,ds){
   if(!presences[key])presences[key]={};
   presences[key][field]=val;
@@ -2073,9 +2105,9 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
 
   // ─── ETAM : nouveau format ───
   if(!isCadre){
-    const SC={present:'#dcfce7',tt:'#dbeafe',dep:'#ede9fe',ferie:'#fff3e0',cp:'#dbeafe',rtt:'#cffafe',recup:'#cffafe',maladie:'#fee2e2',enfant:'#fde8e8',ass:'#f1f5f9',evtfam:'#fdf2f8',absent:'#fee2e2'};
-    const ST={present:'#166534',tt:'#1e40af',dep:'#6d28d9',ferie:'#c2410c',cp:'#1e40af',rtt:'#0e7490',recup:'#0e7490',maladie:'#b91c1c',enfant:'#b91c1c',ass:'#475569',evtfam:'#86198f',absent:'#b91c1c'};
-    const isWork=s=>['present','tt','dep'].includes(s);
+    const SC={present:'#dcfce7',tt:'#dbeafe',dep:'#ede9fe',ecole:'#fef9c3',ferie:'#fff3e0',cp:'#dbeafe',rtt:'#cffafe',recup:'#cffafe',maladie:'#fee2e2',enfant:'#fde8e8',ass:'#f1f5f9',evtfam:'#fdf2f8',absent:'#fee2e2'};
+    const ST={present:'#166534',tt:'#1e40af',dep:'#6d28d9',ecole:'#854d0e',ferie:'#c2410c',cp:'#1e40af',rtt:'#0e7490',recup:'#0e7490',maladie:'#b91c1c',enfant:'#b91c1c',ass:'#475569',evtfam:'#86198f',absent:'#b91c1c'};
+    const isWork=s=>['present','tt','dep','ecole'].includes(s);
     const hH=bg=>`background:${bg};color:white;font-weight:bold;font-size:9pt;padding:5px 8px;border:1px solid #333;text-align:center;white-space:nowrap`;
     const tE=(extra)=>`font-size:9pt;padding:3px 6px;border:1px solid #ddd;text-align:center;vertical-align:middle;${extra||''}`;
     const tLE=(extra)=>`font-size:9pt;padding:3px 8px;border:1px solid #ddd;text-align:left;vertical-align:middle;${extra||''}`;
@@ -2365,6 +2397,7 @@ function _presDotClass(pres){
   if(!vals.length)return '';
   if(vals.includes('present'))  return 'dot-present';  // 🟢 vert
   if(vals.includes('tt'))       return 'dot-tt';        // 🔵 bleu
+  if(vals.includes('ecole'))    return 'dot-ecole';     // 🟡 jaune ocre
   if(vals.includes('dep'))      return 'dot-dep';       // 🟣 violet
   if(vals.includes('ferie'))    return 'dot-ferie';     // 🟠 orange
   // Tout le reste = absence rouge (CP, RTT, maladie, enfant, ass, evtfam, recup, absent…)
@@ -2410,6 +2443,7 @@ function renderMiniCal(){
     <div class="pmc-li"><div class="pmc-dot dot-present" style="width:9px;height:9px;border-radius:2px"></div> Présent</div>
     <div class="pmc-li"><div class="pmc-dot dot-tt" style="width:9px;height:9px;border-radius:2px"></div> Télétravail</div>
     <div class="pmc-li"><div class="pmc-dot dot-dep" style="width:9px;height:9px;border-radius:2px"></div> Déplacement</div>
+    <div class="pmc-li"><div class="pmc-dot dot-ecole" style="width:9px;height:9px;border-radius:2px"></div> École</div>
     <div class="pmc-li"><div style="width:9px;height:9px;border-radius:2px;background:#fff3e0;border:1px solid #f97316;flex-shrink:0"></div> Jour férié</div>
     <div class="pmc-li"><div class="pmc-dot dot-absent" style="width:9px;height:9px;border-radius:2px"></div> Absence (CP, RTT…)</div>
   </div></div>`;
@@ -2666,7 +2700,7 @@ function addUser(){
   if(!name)return;
   const id='u'+Date.now();
   const pwd=name.toLowerCase().replace(/\s+/g,'');
-  users.push({id,name,type,rate:type==='horaire'?100:120,pwd,active:true});
+  users.push({id,name,type,rate:type==='horaire'||type==='alternant'?100:120,pwd,active:true});
   WS('mpe4-users',users);
   document.getElementById('nu-name').value='';
   renderAdminUserTable();populateLockUsers();
@@ -2693,6 +2727,8 @@ function renderAdminUserTable(){
           style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;background:var(--bg);font-family:inherit;color:var(--ink)">
           <option value="cadre"${u.type==='cadre'?' selected':''}>Cadre IC</option>
           <option value="horaire"${u.type==='horaire'?' selected':''}>Horaire ETAM</option>
+          <option value="alternant"${u.type==='alternant'?' selected':''}>Alternant</option>
+          <option value="presta"${u.type==='presta'?' selected':''}>Prestataire</option>
           <option value="admin"${u.type==='admin'?' selected':''}>Admin</option>
         </select>
       </td>
@@ -2807,6 +2843,12 @@ function setProjTab(tab,btn){
     if(sel){sel.innerHTML='<option value="">— Sélectionner un projet —</option>'+projects.map(p=>`<option value="${p.code}">${p.code} · ${p.label}</option>`).join('');}
     renderSuivi();
   }
+  // Presta : masquer onglets création
+  const isPresta=currentUser?.type==='presta';
+  document.querySelectorAll('#proj-tabs .chip').forEach(b=>{
+    if(b.textContent.includes('Nouveau')||b.textContent.includes('WBS'))
+      b.style.display=isPresta?'none':'';
+  });
 }
 
 function renderSuivi(){
@@ -3312,10 +3354,11 @@ function exportPresencesPDF(all){
       :['#','Jour','Date','Arr.Mat','Dép.Mat','Pause','Arr.APM','Dép.APM','Total','Absence','Note'];
 
     const rowData=[];
-    const isWork2=v=>['present','tt','dep'].includes(v);
+    const isWork2=v=>['present','tt','dep','ecole'].includes(v);
     const STATUS_FILL={
       'present': [234,244,238],  // --green-bg
-      'tt':      [234,240,249],  // --blue-bg (télétravail = bleu)
+      'tt':      [234,240,249],
+      'ecole':    [254,249,195],  // jaune ocre (école)
       'dep':     [243,238,251],  // purple-bg
       'ferie':   [238,242,255],  // indigo
       'cp':      [234,240,249],  // blue-bg
@@ -3386,7 +3429,7 @@ function exportPresencesPDF(all){
           else{absAff=presLabel(s)||'';}
           statusM=s||(arr?'present':null);
         }
-        const isWork3=v=>['present','tt','dep'].includes(v);
+        const isWork3=v=>['present','tt','dep','ecole'].includes(v);
         let arr2Pdf='',dep2Pdf='',note='';
         if(pres.demi_j){
           const mS2=pres.matin||pres.matin_abs||'';const apS2=pres.apmidi||pres.apmidi_abs||'';
