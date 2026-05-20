@@ -714,6 +714,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         </div>
       </div>
     </label>
+
   </div>
 </div>
 
@@ -1212,6 +1213,13 @@ function setAbsOption(val){
   users[idx].countAbs=val;currentUser.countAbs=val;
   WS('mpe4-users',users);renderPresences();
 }
+function setEcoleOption(val){
+  if(!currentUser)return;
+  const idx=users.findIndex(u=>u.id===currentUser.id);
+  if(idx<0)return;
+  users[idx].countEcole=val;currentUser.countEcole=val;
+  WS('mpe4-users',users);renderPresences();
+}
 function setJFOption(val){
   if(!currentUser)return;
   const idx=users.findIndex(u=>u.id===currentUser.id);
@@ -1237,6 +1245,7 @@ function renderUserUI(){
   if(absChk)absChk.checked=!!currentUser.countAbs;
   const jfChk=document.getElementById('opt-count-jf');
   if(jfChk)jfChk.checked=!!currentUser.countJF;
+
 
   // Section changement MDP : masquée pour Presta
   const pwdCard=document.querySelector('#page-compte .card:first-child');
@@ -1302,12 +1311,14 @@ function calcWeekPresHours(uid, weekStart){
     } else {
       // Jour férié
       const isFerie=pres.abs==='ferie'||pres.matin==='ferie'||pres.apmidi==='ferie';
+      // Jour École (stocké dans slot principal)
+      const isEcole=pres.abs==='ecole'||pres.matin==='ecole'||pres.apmidi==='ecole';
       if(isFerie&&countJF){
         if(pres.demi_j)total+=3.5*3600000;
         else total+=7*3600000;
       }
-      // Absence (non JF)
-      else if(countAbs&&!isFerie){
+      // Absence (non JF, non École - école compte via heures réelles)
+      else if(countAbs&&!isFerie&&!isEcole){
         const isAbsDay=pres.abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.abs);
         const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.matin_abs);
         const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.apmidi_abs);
@@ -1616,7 +1627,7 @@ function calcHoraireTotal(pres){
   // Journée complète
   if(!pres.arrive||!pres.depart)return '';
   // N'afficher que si c'est du temps de travail (ou pas de statut défini)
-  if(pres.abs&&!['present','tt','dep'].includes(pres.abs))return '';
+  if(pres.abs&&!['present','tt','dep','ecole'].includes(pres.abs))return '';
   const a=timeToMs(pres.arrive),d=timeToMs(pres.depart),p=pres.pause?timeToMs(pres.pause):timeToMs('01:00'),diff=d-a-p;
   if(diff<=0)return '';
   const h=Math.floor(diff/3600000),mn=Math.floor((diff%3600000)/60000);
