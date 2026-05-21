@@ -549,9 +549,9 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         <div class="card-title">📋 Tâches N3</div>
         <div class="add-form" style="flex-wrap:wrap">
           <select class="field" id="nt-proj" style="min-width:120px" onchange="ntAutoNum()"><option value="">— Projet —</option></select>
-          <select class="field" id="nt-wbs" style="min-width:120px" onchange="ntShowN2();ntAutoNum()"><option value="">— N1 WBS —</option></select>
-          <input class="field" type="number" id="nt-n2" placeholder="N2 (ex: 1)" style="max-width:65px;text-align:center" min="1" title="Sous-poste N2 (ex: 2-1, 2-2...)">
-          <input class="field" type="number" id="nt-num" placeholder="N° tâche" style="max-width:65px;text-align:center" min="1">
+          <select class="field" id="nt-wbs" style="min-width:120px" onchange="ntAutoNum()"><option value="">— WBS —</option></select>
+          <input class="field" type="number" id="nt-n2" placeholder="N2" style="max-width:55px;text-align:center" min="1" title="Sous-poste N2">
+          <input type="hidden" id="nt-num" value="">
           <input class="field" type="text" id="nt-label" placeholder="Libellé tâche" style="flex:2;min-width:150px">
           <button class="btn-add" onclick="addTask()">+</button>
         </div>
@@ -1678,11 +1678,11 @@ function populateTaskSel(prefix,projCode,wbsCode){
   const ids={c:'cp-task',m:'mp-task',r:'rp-task'};
   const sel=document.getElementById(ids[prefix]);if(!sel)return;
   sel.innerHTML='<option value="">—</option>';
-  // Filtrer par wbs exact OU par N1 seul (compatibilité anciennes tâches)
-  tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs===wbsCode.split('-')[0])).forEach(t=>{
+  tasks.filter(t=>t.proj===projCode&&t.wbs===wbsCode).forEach(t=>{
     const o=document.createElement('option');
-    o.value=t.wbs+'|'+t.label; // stocker wbs|label pour récupérer le wbs complet
-    const fullCode=projCode+'-'+t.wbs+(t.num?'-'+t.num:'');
+    o.value=t.label;
+    const wbsDisplay=String(t.wbs||wbsCode).replace(/^-/,'');
+    const fullCode=projCode+'-'+wbsDisplay+(t.num?'-'+t.num:'');
     o.textContent=fullCode+' · '+t.label;
     sel.appendChild(o);
   });
@@ -1743,8 +1743,7 @@ function _syncWbs(prefix){
   const ids={c:{task:'cp-task',wbs:'cp-wbs'},m:{task:'mp-task',wbs:'mp-wbs'},r:{task:'rp-task',wbs:'rp-wbs'}};
   const i=ids[prefix];
   const val=document.getElementById(i.task).value;
-  // val est maintenant "wbs|label" — extraire le wbs complet
-  const wbsCode=val.includes('|')?val.split('|')[0]:(val.split('|')[0]||'');
+  const wbsCode=val.split('|')[0]||'';
   const wbsSel=document.getElementById(i.wbs);
   if(wbsSel){wbsSel.value=wbsCode;}
   if(prefix==='c')updateChrono();
@@ -1770,8 +1769,7 @@ function updateChrono(){
   const pc=document.getElementById('cp-proj').value;
   const tv=_parseTaskVal(document.getElementById('cp-task').value);
   const p=projects.find(x=>x.code===pc);
-  const wbsN1=tv.wbs.split('-')[0]; // extraire N1 pour trouver le label
-  const w=wbsList.find(x=>x.code===wbsN1||x.code===tv.wbs);
+  const w=wbsList.find(x=>x.code===tv.wbs);
   document.getElementById('c-bc').textContent=p?p.code+' · '+p.label:'— Aucun projet —';
   const sub=tv.task?`${pc}-${tv.wbs} · ${tv.task}`:(w?`${pc}-${tv.wbs} · ${w.label}`:'Choisissez un projet puis une tâche');
   document.getElementById('c-sub').textContent=sub;
@@ -3094,7 +3092,7 @@ function addWbs(){
 }
 function renderTaskList(){
   const el=document.getElementById('task-list');if(!el)return;
-  el.innerHTML=tasks.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${t.wbs}</span><span class="cfg-label">${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
+  el.innerHTML=tasks.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${String(t.wbs).replace(/^-/,"")}</span><span class="cfg-label">${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
 }
 // Suggère le prochain N° libre pour proj+wbs
 function ntAutoNum(){
@@ -3106,22 +3104,15 @@ function ntAutoNum(){
   document.getElementById('nt-num').value=next;
 }
 
-function ntShowN2(){
-  // Afficher le champ N2 seulement si N1 sélectionné
-  const n2El=document.getElementById('nt-n2');
-  if(n2El) n2El.style.background = document.getElementById('nt-wbs').value ? '' : '#fff3cd';
-}
-
 function addTask(){
   const proj=document.getElementById('nt-proj').value;
   const n1=document.getElementById('nt-wbs').value;
   const n2El=document.getElementById('nt-n2');
   const n2=n2El?n2El.value.trim():'';
-  // wbs = "N1-N2" si N2 renseigné, sinon "N1"
-  const wbs = n2 ? n1+'-'+n2 : n1;
-  const num=document.getElementById('nt-num').value.trim();
+  const wbs=n2?n1+'-'+n2:n1;
+  const num=''; // numéro non utilisé
   const label=document.getElementById('nt-label').value.trim();
-  if(!proj||!n1||!label){alert('Projet, WBS N1 et libellé requis.');return;}
+  if(!proj||!n1||!label){alert('Projet, WBS et libellé requis.');return;}
 
   // Bloquer si numéro déjà pris sur ce proj+wbs
   if(num){
