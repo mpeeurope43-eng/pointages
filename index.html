@@ -1714,8 +1714,12 @@ function populateTaskSelDirect(prefix, projCode){
   const sel=document.getElementById(ids[prefix]);
   if(!sel)return;
   sel.innerHTML='<option value="">— Sélectionner une tâche —</option>';
+  // DEBUG
+  const projTasks=tasks.filter(t=>t.proj===projCode);
+  console.log('populateTaskSelDirect proj='+projCode+' tasks='+JSON.stringify(projTasks.map(t=>({wbs:t.wbs,label:t.label}))));
   // Inclure les tâches avec wbs=N1 ET wbs=N1-N2
   const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
+  console.log('usedWbs='+JSON.stringify(usedWbs.map(w=>w.code)));
   if(usedWbs.length){
     usedWbs.forEach(w=>{
       const wbsTasks=tasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code));
