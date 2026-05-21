@@ -1680,9 +1680,9 @@ function populateTaskSel(prefix,projCode,wbsCode){
   sel.innerHTML='<option value="">—</option>';
   tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs.split('-')[0]===wbsCode)).forEach(t=>{
     const o=document.createElement('option');
-    o.value=t.label;
-    const wbsDisplay=String(t.wbs||wbsCode).replace(/^-/,'');
-    const fullCode=projCode+'-'+wbsDisplay+(t.num?'-'+t.num:'');
+    const wbsReal=String(t.wbs||wbsCode).replace(/^-/,'');
+    o.value=wbsReal+'|'+t.label;  // format wbs|label pour _parseTaskVal
+    const fullCode=projCode+'-'+wbsReal+(t.num?'-'+t.num:'');
     o.textContent=fullCode+' · '+t.label;
     sel.appendChild(o);
   });
