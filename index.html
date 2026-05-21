@@ -549,8 +549,9 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         <div class="card-title">📋 Tâches N3</div>
         <div class="add-form" style="flex-wrap:wrap">
           <select class="field" id="nt-proj" style="min-width:120px" onchange="ntAutoNum()"><option value="">— Projet —</option></select>
-          <select class="field" id="nt-wbs" style="min-width:120px" onchange="ntAutoNum()"><option value="">— WBS —</option></select>
-          <input class="field" type="number" id="nt-num" placeholder="N° auto" style="max-width:65px;text-align:center" min="1">
+          <select class="field" id="nt-wbs" style="min-width:120px" onchange="ntShowN2();ntAutoNum()"><option value="">— N1 WBS —</option></select>
+          <input class="field" type="number" id="nt-n2" placeholder="N2 (ex: 1)" style="max-width:65px;text-align:center" min="1" title="Sous-poste N2 (ex: 2-1, 2-2...)">
+          <input class="field" type="number" id="nt-num" placeholder="N° tâche" style="max-width:65px;text-align:center" min="1">
           <input class="field" type="text" id="nt-label" placeholder="Libellé tâche" style="flex:2;min-width:150px">
           <button class="btn-add" onclick="addTask()">+</button>
         </div>
@@ -1677,10 +1678,11 @@ function populateTaskSel(prefix,projCode,wbsCode){
   const ids={c:'cp-task',m:'mp-task',r:'rp-task'};
   const sel=document.getElementById(ids[prefix]);if(!sel)return;
   sel.innerHTML='<option value="">—</option>';
-  tasks.filter(t=>t.proj===projCode&&t.wbs===wbsCode).forEach(t=>{
+  // Filtrer par wbs exact OU par N1 seul (compatibilité anciennes tâches)
+  tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs===wbsCode.split('-')[0])).forEach(t=>{
     const o=document.createElement('option');
-    o.value=t.label;
-    const fullCode=projCode+'-'+wbsCode+(t.num?'-'+t.num:'');
+    o.value=t.wbs+'|'+t.label; // stocker wbs|label pour récupérer le wbs complet
+    const fullCode=projCode+'-'+t.wbs+(t.num?'-'+t.num:'');
     o.textContent=fullCode+' · '+t.label;
     sel.appendChild(o);
   });
@@ -1741,7 +1743,8 @@ function _syncWbs(prefix){
   const ids={c:{task:'cp-task',wbs:'cp-wbs'},m:{task:'mp-task',wbs:'mp-wbs'},r:{task:'rp-task',wbs:'rp-wbs'}};
   const i=ids[prefix];
   const val=document.getElementById(i.task).value;
-  const wbsCode=val.split('|')[0]||'';
+  // val est maintenant "wbs|label" — extraire le wbs complet
+  const wbsCode=val.includes('|')?val.split('|')[0]:(val.split('|')[0]||'');
   const wbsSel=document.getElementById(i.wbs);
   if(wbsSel){wbsSel.value=wbsCode;}
   if(prefix==='c')updateChrono();
@@ -1767,7 +1770,8 @@ function updateChrono(){
   const pc=document.getElementById('cp-proj').value;
   const tv=_parseTaskVal(document.getElementById('cp-task').value);
   const p=projects.find(x=>x.code===pc);
-  const w=wbsList.find(x=>x.code===tv.wbs);
+  const wbsN1=tv.wbs.split('-')[0]; // extraire N1 pour trouver le label
+  const w=wbsList.find(x=>x.code===wbsN1||x.code===tv.wbs);
   document.getElementById('c-bc').textContent=p?p.code+' · '+p.label:'— Aucun projet —';
   const sub=tv.task?`${pc}-${tv.wbs} · ${tv.task}`:(w?`${pc}-${tv.wbs} · ${w.label}`:'Choisissez un projet puis une tâche');
   document.getElementById('c-sub').textContent=sub;
@@ -2711,10 +2715,7 @@ function addUser(){
   if(!name)return;
   const id='u'+Date.now();
   const pwd=name.toLowerCase().replace(/\s+/g,'');
-  const rateEl=document.getElementById('nu-rate');
-  const customRate = rateEl&&rateEl.value ? parseFloat(rateEl.value) : null;
-  const defaultRate = (type==='horaire'||type==='alternant') ? 100 : type==='presta' ? 100 : 120;
-  users.push({id,name,type,rate:customRate||defaultRate,pwd,active:true,_rateCustom:!!customRate});
+  users.push({id,name,type,rate:type==='horaire'||type==='alternant'?100:120,pwd,active:true});
   WS('mpe4-users',users);
   document.getElementById('nu-name').value='';
   renderAdminUserTable();populateLockUsers();
@@ -2727,7 +2728,6 @@ function renderAdminUserTable(){
     <tr style="background:var(--surface2)">
       <th style="padding:6px;text-align:left">Nom</th>
       <th style="padding:6px;text-align:center">Type</th>
-      <th style="padding:6px;text-align:center">Taux €/h</th>
       <th style="padding:6px;text-align:center">Mot de passe</th>
       <th style="padding:6px;text-align:center">Statut</th>
       <th style="padding:6px;text-align:right">Actions</th>
@@ -2748,14 +2748,6 @@ function renderAdminUserTable(){
         </select>
       </td>
       <td style="text-align:center;padding:4px">
-        <div style="display:flex;align-items:center;justify-content:center;gap:3px">
-          <input type="number" value="${u.rate||100}" min="0" max="999"
-            onblur="editUserField('${u.id}','rate',parseFloat(this.value)||100)"
-            style="font-size:12px;font-family:monospace;border:1px solid var(--border);border-radius:4px;padding:2px 4px;width:52px;background:var(--bg);color:var(--accent);font-weight:700;text-align:center">
-          <span style="font-size:10px;color:var(--muted)">€/h</span>
-        </div>
-      </td>
-      <td style="text-align:center;padding:4px">
         <input type="text" value="${u.pwd||''}" onblur="editUserField('${u.id}','pwd',this.value)"
           style="font-size:11px;font-family:monospace;border:1px solid var(--border);border-radius:4px;padding:2px 6px;width:130px;background:var(--bg);color:var(--muted)">
       </td>
@@ -2773,16 +2765,12 @@ function renderAdminUserTable(){
 }
 
 function editUserField(id, field, value){
-  if(field==='rate'||field==='hSemaine') value=parseFloat(value)||0;
-  else value=(typeof value==='string'?value.trim():value);
-  if(value===''||value===null||value===undefined)return;
+  value=value.trim();
+  if(!value)return;
   const idx=users.findIndex(u=>u.id===id);if(idx<0)return;
   users[idx]={...users[idx],[field]:value};
-  // Si changement de type → update rate par défaut SEULEMENT si pas modifié manuellement
-  if(field==='type' && !users[idx]._rateCustom){
-    users[idx].rate = (value==='horaire'||value==='alternant') ? 100 : value==='presta' ? 100 : 120;
-  }
-  if(field==='rate') users[idx]._rateCustom = true;
+  // Si changement de type → update rate
+  if(field==='type')users[idx].rate=value==='horaire'?100:120;
   WS('mpe4-users',users);
   // Si c'est l'utilisateur courant → update UI
   if(currentUser&&currentUser.id===id){currentUser=users[idx];renderUserUI();}
@@ -3118,12 +3106,22 @@ function ntAutoNum(){
   document.getElementById('nt-num').value=next;
 }
 
+function ntShowN2(){
+  // Afficher le champ N2 seulement si N1 sélectionné
+  const n2El=document.getElementById('nt-n2');
+  if(n2El) n2El.style.background = document.getElementById('nt-wbs').value ? '' : '#fff3cd';
+}
+
 function addTask(){
   const proj=document.getElementById('nt-proj').value;
-  const wbs=document.getElementById('nt-wbs').value;
+  const n1=document.getElementById('nt-wbs').value;
+  const n2El=document.getElementById('nt-n2');
+  const n2=n2El?n2El.value.trim():'';
+  // wbs = "N1-N2" si N2 renseigné, sinon "N1"
+  const wbs = n2 ? n1+'-'+n2 : n1;
   const num=document.getElementById('nt-num').value.trim();
   const label=document.getElementById('nt-label').value.trim();
-  if(!proj||!wbs||!label){alert('Projet, WBS et libellé requis.');return;}
+  if(!proj||!n1||!label){alert('Projet, WBS N1 et libellé requis.');return;}
 
   // Bloquer si numéro déjà pris sur ce proj+wbs
   if(num){
