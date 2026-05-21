@@ -1714,12 +1714,8 @@ function populateTaskSelDirect(prefix, projCode){
   const sel=document.getElementById(ids[prefix]);
   if(!sel)return;
   sel.innerHTML='<option value="">— Sélectionner une tâche —</option>';
-  // DEBUG
-  const projTasks=tasks.filter(t=>t.proj===projCode);
-  console.log('populateTaskSelDirect proj='+projCode+' tasks='+JSON.stringify(projTasks.map(t=>({wbs:t.wbs,label:t.label}))));
   // Inclure les tâches avec wbs=N1 ET wbs=N1-N2
   const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
-  console.log('usedWbs='+JSON.stringify(usedWbs.map(w=>w.code)));
   if(usedWbs.length){
     usedWbs.forEach(w=>{
       const wbsTasks=tasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code));
@@ -2999,9 +2995,9 @@ function renderProjList(){
   el.innerHTML=list.map(p=>{
     const ms=entries.filter(e=>e.project===p.code).reduce((s,e)=>s+e.ms,0);
     // WBS utilisés pour ce projet — liste plate par tâche
-    const projWbs=wbsList.filter(w=>tasks.some(t=>t.proj===p.code&&t.wbs===w.code));
+    const projWbs=wbsList.filter(w=>tasks.some(t=>t.proj===p.code&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
     const allTasks=projWbs.flatMap(w=>
-      tasks.filter(t=>t.proj===p.code&&t.wbs===w.code).map(t=>({w,t}))
+      tasks.filter(t=>t.proj===p.code&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)).map(t=>({w,t}))
     );
     const wbsHtml=allTasks.length
       ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:5px">
@@ -3235,7 +3231,7 @@ function emUpdateWbs(selWbs,selTask){
   const projCode=document.getElementById('em-proj').value;
   const wbsSel=document.getElementById('em-wbs');
   wbsSel.innerHTML='<option value="">— WBS —</option>';
-  const wbsWithTasks=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&t.wbs===w.code));
+  const wbsWithTasks=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
   const listToShow=wbsWithTasks.length>0?wbsWithTasks:wbsList;
   listToShow.forEach(w=>{const o=document.createElement('option');o.value=w.code;o.textContent=w.code+' · '+w.label;wbsSel.appendChild(o);});
   if(selWbs)wbsSel.value=selWbs;
@@ -3304,13 +3300,14 @@ function qaUpdateTask(){
   const sel=document.getElementById('qa-task');
   sel.innerHTML='<option value="">— Tâche —</option>';
   if(!projCode)return;
-  const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&t.wbs===w.code));
+  const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
   const list=usedWbs.length?usedWbs:[];
   list.forEach(w=>{
-    tasks.filter(t=>t.proj===projCode&&t.wbs===w.code).forEach(t=>{
+    tasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)).forEach(t=>{
       const o=document.createElement('option');
-      const code=`${projCode}-${w.code}${t.num?'-'+t.num:''}`;
-      o.value=`${w.code}|${t.label}`;
+      const wbsReal=String(t.wbs).replace(/^-/,'');
+      const code=`${projCode}-${wbsReal}${t.num?'-'+t.num:''}`;
+      o.value=`${wbsReal}|${t.label}`;
       o.textContent=`${code}  ·  ${w.label} / ${t.label}`;
       sel.appendChild(o);
     });
