@@ -749,7 +749,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       <div class="card-title">➕ Ajouter utilisateur</div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <input class="field" type="text" id="nu-name" placeholder="Prénom Nom" style="flex:2;min-width:130px">
-        <select class="field" id="nu-type" style="flex:1;min-width:100px" onchange="toggleNuHSemaine()">
+        <select class="field" id="nu-type" style="flex:1;min-width:100px">
           <option value="cadre">Cadre (IC)</option>
           <option value="horaire">Horaire (ETAM)</option>
           <option value="alternant">Alternant</option>
@@ -986,22 +986,15 @@ const ABSENCES_MOTIF = [
   {code:'evtfam',  label:'Evt familial'},
 ];
 const ABSENCES = [...ABSENCES_TRAVAIL, {code:'absent', label:'Absent', cls:'active-absent'}, ...ABSENCES_MOTIF];
-const HEURES_SEMAINE = 35; // valeur par défaut (remplacée par user.hSemaine si défini)
-function getUserHSemaine(user) {
-  if (!user) return HEURES_SEMAINE;
-  // Cadres et admins : pas de compteur → null
-  if (user.type === 'cadre' || user.type === 'admin') return null;
-  // Sinon : prendre hSemaine de l'user ou défaut 35
-  return user.hSemaine || HEURES_SEMAINE;
-}
+const HEURES_SEMAINE = 35;
 
 // ════════════════════════ DONNÉES PAR DÉFAUT ════════════════════════
 const DEF_USERS=[
-  {id:'u1',name:'David Cizeron',type:'cadre',rate:120,pwd:'davidcizeron',hSemaine:null},
-  {id:'u2',name:'Damien Cuoq',type:'admin',rate:120,pwd:'damiencuoq',hSemaine:null},
-  {id:'u3',name:'Evan Jarousse',type:'horaire',rate:100,pwd:'evanjarousse',hSemaine:35},
-  {id:'u4',name:'Damien Charreyre',type:'horaire',rate:100,pwd:'damiencharreyre',hSemaine:35},
-  {id:'u5',name:'Aline Cavezzan',type:'horaire',rate:100,pwd:'alinecavezzan',hSemaine:38},
+  {id:'u1',name:'David Cizeron',type:'cadre',rate:120,pwd:'davidcizeron'},
+  {id:'u2',name:'Damien Cuoq',type:'admin',rate:120,pwd:'damiencuoq'},
+  {id:'u3',name:'Evan Jarousse',type:'horaire',rate:100,pwd:'evanjarousse'},
+  {id:'u4',name:'Damien Charreyre',type:'horaire',rate:100,pwd:'damiencharreyre'},
+  {id:'u5',name:'Aline Cavezzan',type:'horaire',rate:100,pwd:'alinecavezzan'},
 ];
 const DEF_WBS=[
   {code:'0',label:'CHIFFRAGE'},
@@ -1291,8 +1284,7 @@ function update35hCounter(){
   if(!currentUser||!['horaire','alternant'].includes(currentUser.type)){el.style.display='none';return;}
   const weekMs=filterEntries('week').filter(e=>e.userId===currentUser.id).reduce((s,e)=>s+e.ms,0);
   const weekH=weekMs/3600000;
-  const limit=getUserHSemaine(currentUser);
-  if(!limit){el.style.display='none';return;}
+  const limit=HEURES_SEMAINE;
   const pct=Math.min(weekH/limit*100,100);
   let cls='h35-ok',icon='✓';
   if(weekH>=limit){cls='h35-over';icon='⚠';}
@@ -1355,7 +1347,7 @@ function renderPresences(){
     const {mon}=_getWeekRange(0);
     const weekTotalMs=calcWeekPresHours(currentUser.id,mon);
     const weekH=weekTotalMs/3600000;
-    const limit=getUserHSemaine(currentUser)||HEURES_SEMAINE;
+    const limit=HEURES_SEMAINE;
     const pct=Math.min(weekH/limit*100,100);
     const over=weekH>limit,warn=weekH>=limit*0.9&&!over;
     const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
@@ -1391,7 +1383,7 @@ function renderPresences(){
       const mondayDate=new Date(y,m,d);
       const weekMs=calcWeekPresHours(currentUser.id,mondayDate);
       const weekH=weekMs/3600000;
-      const limit=getUserHSemaine(currentUser)||HEURES_SEMAINE;
+      const limit=HEURES_SEMAINE;
       const pct=Math.min(weekH/limit*100,100);
       const over=weekH>limit,warn=weekH>=limit*0.9&&!over;
       const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
@@ -2713,18 +2705,16 @@ function changeMyPwd(){
   document.getElementById('my-pwd-2').value='';
   show('Mot de passe modifié ✓',true);
 }
-function toggleNuHSemaine(){
-  const type=document.getElementById('nu-type').value;
-  const el=document.getElementById('nu-hsemaine');
-  if(el) el.style.display=(type==='horaire'||type==='alternant'||type==='presta')?'block':'none';
-}
 function addUser(){
   const name=document.getElementById('nu-name').value.trim();
   const type=document.getElementById('nu-type').value;
   if(!name)return;
   const id='u'+Date.now();
   const pwd=name.toLowerCase().replace(/\s+/g,'');
-  users.push({id,name,type,rate:type==='horaire'||type==='alternant'?100:120,pwd,active:true});
+  const rateEl=document.getElementById('nu-rate');
+  const customRate = rateEl&&rateEl.value ? parseFloat(rateEl.value) : null;
+  const defaultRate = (type==='horaire'||type==='alternant') ? 100 : type==='presta' ? 100 : 120;
+  users.push({id,name,type,rate:customRate||defaultRate,pwd,active:true,_rateCustom:!!customRate});
   WS('mpe4-users',users);
   document.getElementById('nu-name').value='';
   renderAdminUserTable();populateLockUsers();
@@ -2737,7 +2727,7 @@ function renderAdminUserTable(){
     <tr style="background:var(--surface2)">
       <th style="padding:6px;text-align:left">Nom</th>
       <th style="padding:6px;text-align:center">Type</th>
-      <th style="padding:6px;text-align:center">H/sem</th>
+      <th style="padding:6px;text-align:center">Taux €/h</th>
       <th style="padding:6px;text-align:center">Mot de passe</th>
       <th style="padding:6px;text-align:center">Statut</th>
       <th style="padding:6px;text-align:right">Actions</th>
@@ -2748,14 +2738,6 @@ function renderAdminUserTable(){
           style="border:none;background:transparent;font-weight:600;font-size:12px;font-family:inherit;width:140px;outline:none;border-bottom:1px dashed var(--border);color:${u.active===false?'var(--muted)':'var(--ink)'}">
       </td>
       <td style="text-align:center;padding:4px">
-        ${(u.type==='horaire'||u.type==='alternant'||u.type==='presta')?
-          `<input type="number" value="${u.hSemaine||35}" min="1" max="60"
-            onblur="editUserField('${u.id}','hSemaine',parseFloat(this.value)||35)"
-            style="border:none;background:var(--surface2);border-radius:4px;width:46px;text-align:center;font-size:12px;padding:2px 4px;font-family:var(--mono, monospace);font-weight:600;color:var(--accent)"
-            title="Heures de travail par semaine"> h`
-          :'<span style="color:var(--muted);font-size:11px">—</span>'}
-      </td>
-      <td style="text-align:center;padding:4px">
         <select onchange="editUserField('${u.id}','type',this.value)"
           style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;background:var(--bg);font-family:inherit;color:var(--ink)">
           <option value="cadre"${u.type==='cadre'?' selected':''}>Cadre IC</option>
@@ -2764,6 +2746,14 @@ function renderAdminUserTable(){
           <option value="presta"${u.type==='presta'?' selected':''}>Prestataire</option>
           <option value="admin"${u.type==='admin'?' selected':''}>Admin</option>
         </select>
+      </td>
+      <td style="text-align:center;padding:4px">
+        <div style="display:flex;align-items:center;justify-content:center;gap:3px">
+          <input type="number" value="${u.rate||100}" min="0" max="999"
+            onblur="editUserField('${u.id}','rate',parseFloat(this.value)||100)"
+            style="font-size:12px;font-family:monospace;border:1px solid var(--border);border-radius:4px;padding:2px 4px;width:52px;background:var(--bg);color:var(--accent);font-weight:700;text-align:center">
+          <span style="font-size:10px;color:var(--muted)">€/h</span>
+        </div>
       </td>
       <td style="text-align:center;padding:4px">
         <input type="text" value="${u.pwd||''}" onblur="editUserField('${u.id}','pwd',this.value)"
@@ -2783,21 +2773,16 @@ function renderAdminUserTable(){
 }
 
 function editUserField(id, field, value){
-  if(field!=='hSemaine') value=(typeof value==='string'?value.trim():value);
+  if(field==='rate'||field==='hSemaine') value=parseFloat(value)||0;
+  else value=(typeof value==='string'?value.trim():value);
   if(value===''||value===null||value===undefined)return;
   const idx=users.findIndex(u=>u.id===id);if(idx<0)return;
-  // hSemaine → stocker comme nombre
-  if(field==='hSemaine') value=parseFloat(value)||35;
   users[idx]={...users[idx],[field]:value};
-  // Si changement de type → update rate + reset hSemaine par défaut
-  if(field==='type'){
-    users[idx].rate=value==='horaire'||value==='alternant'?100:120;
-    if(value==='horaire'||value==='alternant'||value==='presta'){
-      if(!users[idx].hSemaine) users[idx].hSemaine=35;
-    } else {
-      users[idx].hSemaine=null;
-    }
+  // Si changement de type → update rate par défaut SEULEMENT si pas modifié manuellement
+  if(field==='type' && !users[idx]._rateCustom){
+    users[idx].rate = (value==='horaire'||value==='alternant') ? 100 : value==='presta' ? 100 : 120;
   }
+  if(field==='rate') users[idx]._rateCustom = true;
   WS('mpe4-users',users);
   // Si c'est l'utilisateur courant → update UI
   if(currentUser&&currentUser.id===id){currentUser=users[idx];renderUserUI();}
