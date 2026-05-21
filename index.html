@@ -1663,7 +1663,7 @@ function populateWbsSel(prefix){
   sel.innerHTML='<option value="">— WBS —</option>';
   // Filtrer: uniquement les WBS qui ont des tâches N3 pour ce projet
   const wbsWithTasks = projCode
-    ? wbsList.filter(w => tasks.some(t => t.proj===projCode && t.wbs===w.code))
+    ? wbsList.filter(w => tasks.some(t => t.proj===projCode && (t.wbs===w.code||t.wbs.split('-')[0]===w.code)))
     : wbsList;
   // Si aucune tâche créée, montrer tous les WBS (mode dégradé)
   const listToShow = wbsWithTasks.length > 0 ? wbsWithTasks : wbsList;
@@ -1678,7 +1678,7 @@ function populateTaskSel(prefix,projCode,wbsCode){
   const ids={c:'cp-task',m:'mp-task',r:'rp-task'};
   const sel=document.getElementById(ids[prefix]);if(!sel)return;
   sel.innerHTML='<option value="">—</option>';
-  tasks.filter(t=>t.proj===projCode&&t.wbs===wbsCode).forEach(t=>{
+  tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs.split('-')[0]===wbsCode)).forEach(t=>{
     const o=document.createElement('option');
     o.value=t.label;
     const wbsDisplay=String(t.wbs||wbsCode).replace(/^-/,'');
@@ -3240,7 +3240,7 @@ function emUpdateTask(selTask){
   const wbsCode=document.getElementById('em-wbs').value;
   const taskSel=document.getElementById('em-task');
   taskSel.innerHTML='<option value="">—</option>';
-  tasks.filter(t=>t.proj===projCode&&t.wbs===wbsCode).forEach(t=>{const o=document.createElement('option');o.value=t.label;o.textContent=t.label;taskSel.appendChild(o);});
+  tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs.split('-')[0]===wbsCode)).forEach(t=>{const o=document.createElement('option');o.value=t.label;o.textContent=t.label;taskSel.appendChild(o);});
   if(selTask)taskSel.value=selTask;
 }
 function emPreviewDur(){
