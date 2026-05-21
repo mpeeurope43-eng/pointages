@@ -1714,11 +1714,11 @@ function populateTaskSelDirect(prefix, projCode){
   const sel=document.getElementById(ids[prefix]);
   if(!sel)return;
   sel.innerHTML='<option value="">— Sélectionner une tâche —</option>';
-  // Inclure les tâches avec wbs=N1 ET wbs=N1-N2
-  const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
+  const dedupTasks=filterTasksDedup(tasks, projCode);
+  const usedWbs=wbsList.filter(w=>dedupTasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
   if(usedWbs.length){
     usedWbs.forEach(w=>{
-      const wbsTasks=tasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code));
+      const wbsTasks=dedupTasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code));
       wbsTasks.forEach(t=>{
         const o=document.createElement('option');
         o.value=`${String(t.wbs).replace(/^-/,'')}|${t.label}`; // wbs réel de la tâche
@@ -3003,8 +3003,9 @@ function renderProjList(){
     const wbsHtml=allTasks.length
       ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:5px">
           ${allTasks.map(({w,t})=>{
-            const code=`${p.code}-${w.code}${t.num?'-'+t.num:''}`;
-            const tMs=entries.filter(e=>e.project===p.code&&e.wbs===w.code&&e.task===t.label).reduce((s,e)=>s+e.ms,0);
+            const wbsT=String(t.wbs).replace(/^-/,'');
+            const code=`${p.code}-${wbsT}${t.num?'-'+t.num:''}`;
+            const tMs=entries.filter(e=>e.project===p.code&&(e.wbs===wbsT||e.wbs===w.code)&&e.task===t.label).reduce((s,e)=>s+e.ms,0);
             const tKey=encodeURIComponent(`${p.code}||${w.code}||${t.num}||${t.label}`);
             return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 7px;display:flex;align-items:center;gap:6px">
               <span style="font-family:monospace;font-size:10px;font-weight:700;color:var(--accent);white-space:nowrap">${code}</span>
@@ -3095,7 +3096,7 @@ function addWbs(){
 }
 function renderTaskList(){
   const el=document.getElementById('task-list');if(!el)return;
-  el.innerHTML=tasks.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${String(t.wbs).replace(/^-/,"")}</span><span class="cfg-label">${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
+  el.innerHTML=tasks.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${String(t.wbs).replace(/^-/,"")}</span><span class="cfg-label">${(()=>{const n1=String(t.wbs).replace(/^-/,'').split('-')[0];const w=wbsList.find(x=>x.code===n1);return w?w.label+' / ':''})()}${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
 }
 // Suggère le prochain N° libre pour proj+wbs
 function ntAutoNum(){
@@ -3105,6 +3106,21 @@ function ntAutoNum(){
   const existing=tasks.filter(t=>t.proj===proj&&t.wbs===wbs).map(t=>parseInt(t.num)||0);
   const next=existing.length?Math.max(...existing)+1:1;
   document.getElementById('nt-num').value=next;
+}
+
+
+function filterTasksDedup(taskList, projCode) {
+  const n1WithN2 = new Set(
+    taskList.filter(t => t.proj===projCode && /^\d+-\d+/.test(t.wbs))
+            .map(t => t.wbs.split('-')[0])
+  );
+  return taskList.filter(t => {
+    if (t.proj !== projCode) return true;
+    const wbs = String(t.wbs).replace(/^-/,'');
+    const isN1Only = /^\d+$/.test(wbs);
+    if (isN1Only && n1WithN2.has(wbs)) return false;
+    return true;
+  });
 }
 
 function addTask(){
@@ -3301,10 +3317,11 @@ function qaUpdateTask(){
   const sel=document.getElementById('qa-task');
   sel.innerHTML='<option value="">— Tâche —</option>';
   if(!projCode)return;
-  const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
+  const dedupTasksQa=filterTasksDedup(tasks, projCode);
+  const usedWbs=wbsList.filter(w=>dedupTasksQa.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
   const list=usedWbs.length?usedWbs:[];
   list.forEach(w=>{
-    tasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)).forEach(t=>{
+    dedupTasksQa.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)).forEach(t=>{
       const o=document.createElement('option');
       const wbsReal=String(t.wbs).replace(/^-/,'');
       const code=`${projCode}-${wbsReal}${t.num?'-'+t.num:''}`;
