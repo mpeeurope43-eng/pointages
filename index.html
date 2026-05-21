@@ -1714,13 +1714,14 @@ function populateTaskSelDirect(prefix, projCode){
   const sel=document.getElementById(ids[prefix]);
   if(!sel)return;
   sel.innerHTML='<option value="">— Sélectionner une tâche —</option>';
-  const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&t.wbs===w.code));
+  // Inclure les tâches avec wbs=N1 ET wbs=N1-N2
+  const usedWbs=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
   if(usedWbs.length){
     usedWbs.forEach(w=>{
-      const wbsTasks=tasks.filter(t=>t.proj===projCode&&t.wbs===w.code);
+      const wbsTasks=tasks.filter(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code));
       wbsTasks.forEach(t=>{
         const o=document.createElement('option');
-        o.value=`${w.code}|${t.label}`;
+        o.value=`${String(t.wbs).replace(/^-/,'')}|${t.label}`; // wbs réel de la tâche
         const code=`${projCode}-${w.code}${t.num?'-'+t.num:''}`;
         o.textContent=`${code}  ·  ${w.label} / ${t.label}`;
         sel.appendChild(o);
