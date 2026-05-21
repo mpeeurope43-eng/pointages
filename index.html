@@ -2585,7 +2585,8 @@ function renderCalWeek(ct,mine){
           const timeStr=e.start&&e.end&&e.start!=='—'?`${e.start}→${e.end}`:'';
           return `<div style="background:${col}18;border-left:3px solid ${col};border-radius:0 5px 5px 0;padding:6px 8px;margin-bottom:4px;cursor:pointer" data-edit-id="${e.id}">
             <div style="font-size:11px;font-weight:700;color:${col}">${e.project} <span style="font-family:monospace;font-size:10px">${fmtH(e.ms)}</span></div>
-            ${e.task?`<div style="font-size:10px;color:var(--ink2);margin-top:1px">${e.task}</div>`:''}
+            ${e.wbs?`<div style="font-size:10px;font-family:monospace;color:var(--ink2);margin-top:1px">${e.project}-${String(e.wbs).replace(/^-/,'')}${e.taskNum?'-'+e.taskNum:''}</div>`:'' }
+            ${e.task?`<div style="font-size:10px;color:var(--ink2)">${e.task}</div>`:''}
             ${e.desc?`<div style="font-size:10px;color:var(--muted);font-style:italic">${e.desc}</div>`:''}
             ${timeStr?`<div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:monospace">${timeStr}</div>`:''}
           </div>`;
