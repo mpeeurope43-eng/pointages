@@ -1722,7 +1722,8 @@ function populateTaskSelDirect(prefix, projCode){
       wbsTasks.forEach(t=>{
         const o=document.createElement('option');
         o.value=`${String(t.wbs).replace(/^-/,'')}|${t.label}`; // wbs réel de la tâche
-        const code=`${projCode}-${w.code}${t.num?'-'+t.num:''}`;
+        const wbsReal=String(t.wbs).replace(/^-/,'');
+        const code=`${projCode}-${wbsReal}${t.num?'-'+t.num:''}`;
         o.textContent=`${code}  ·  ${w.label} / ${t.label}`;
         sel.appendChild(o);
       });
