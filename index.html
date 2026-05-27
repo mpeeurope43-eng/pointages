@@ -1009,6 +1009,11 @@ const ABSENCES_MOTIF = [
 ];
 const ABSENCES = [...ABSENCES_TRAVAIL, {code:'absent', label:'Absent', cls:'active-absent'}, ...ABSENCES_MOTIF];
 const HEURES_SEMAINE = 35;
+function getUserHSemaine(user) {
+  if (!user) return HEURES_SEMAINE;
+  if (user.type === 'cadre' || user.type === 'admin') return null;
+  return user.hSemaine || HEURES_SEMAINE;
+}
 
 // ════════════════════════ DONNÉES PAR DÉFAUT ════════════════════════
 const DEF_USERS=[
@@ -1306,7 +1311,7 @@ function update35hCounter(){
   if(!currentUser||!['horaire','alternant'].includes(currentUser.type)){el.style.display='none';return;}
   const weekMs=filterEntries('week').filter(e=>e.userId===currentUser.id).reduce((s,e)=>s+e.ms,0);
   const weekH=weekMs/3600000;
-  const limit=HEURES_SEMAINE;
+  const limit=getUserHSemaine(currentUser)||HEURES_SEMAINE;
   const pct=Math.min(weekH/limit*100,100);
   let cls='h35-ok',icon='✓';
   if(weekH>=limit){cls='h35-over';icon='⚠';}
@@ -1369,7 +1374,7 @@ function renderPresences(){
     const {mon}=_getWeekRange(0);
     const weekTotalMs=calcWeekPresHours(currentUser.id,mon);
     const weekH=weekTotalMs/3600000;
-    const limit=HEURES_SEMAINE;
+    const limit=getUserHSemaine(currentUser)||HEURES_SEMAINE;
     const pct=Math.min(weekH/limit*100,100);
     const over=weekH>limit,warn=weekH>=limit*0.9&&!over;
     const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
@@ -1405,7 +1410,7 @@ function renderPresences(){
       const mondayDate=new Date(y,m,d);
       const weekMs=calcWeekPresHours(currentUser.id,mondayDate);
       const weekH=weekMs/3600000;
-      const limit=HEURES_SEMAINE;
+      const limit=getUserHSemaine(currentUser)||HEURES_SEMAINE;
       const pct=Math.min(weekH/limit*100,100);
       const over=weekH>limit,warn=weekH>=limit*0.9&&!over;
       const barColor=over?'#ef4444':warn?'#f97316':'#22c55e';
