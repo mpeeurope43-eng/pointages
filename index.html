@@ -871,6 +871,8 @@ if(!_IS_LOCAL){
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const DATA_REF = db.collection("mpe-europe").doc("data");
+        window._DATA_REF = DATA_REF; // exposer pour switchUser
+        window._firebaseReady = true;
 
         window.saveToFirebase = async function(){
           try{
@@ -944,6 +946,25 @@ function fmtH(ms){
 // ════════════════════════════════════════
 
 function switchUser(uid){
+  // Recharger les users depuis Firebase pour avoir taux/h/sem à jour
+  if(window._firebaseReady && window._DATA_REF){
+    window._DATA_REF.get().then(doc=>{
+      if(doc.exists && doc.data().users){
+        const freshUsers = doc.data().users;
+        // Mettre à jour le tableau local avec les dernières valeurs Firebase
+        freshUsers.forEach(fu => {
+          const idx = users.findIndex(u=>u.id===fu.id);
+          if(idx>=0) users[idx]={...users[idx],...fu};
+          else users.push(fu);
+        });
+        W('mpe4-users', users);
+      }
+    }).catch(()=>{}).finally(()=>_doSwitchUser(uid));
+    return;
+  }
+  _doSwitchUser(uid);
+}
+function _doSwitchUser(uid){
   const u=users.find(x=>x.id===uid);if(!u)return;
   currentUser=u;
   const now=new Date(),ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
@@ -3685,7 +3706,7 @@ window._mpeReload=function(){
 
 <!-- Modal ajout rapide depuis journal -->
 <div id="quickadd-modal" onclick="if(event.target===this)qaClose()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border-radius:14px;padding:24px;max-width:400px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+  <div style="background:var(--surface);border-radius:14px;padding:24px;max-width:400px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)" onclick="event.stopPropagation()">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div>
         <div style="font-size:15px;font-weight:700">➕ Ajouter un pointage</div>
@@ -3705,7 +3726,9 @@ window._mpeReload=function(){
     <div class="grid2" style="gap:10px">
       <div class="field-group" style="margin:0">
         <label class="field-label">Durée (ex: 2h, 1h30)</label>
-        <input class="field" type="text" id="qa-dur" oninput="qaPreviewDur()" placeholder="1h30">
+        <input class="field" type="text" id="qa-dur" oninput="qaPreviewDur()" 
+          onkeydown="if(event.key==='Enter'){event.preventDefault();qaSave();}" 
+          placeholder="1h30">
         <div id="qa-dur-preview" style="font-size:11px;color:var(--green);margin-top:3px;min-height:14px"></div>
       </div>
       <div class="field-group" style="margin:0">
