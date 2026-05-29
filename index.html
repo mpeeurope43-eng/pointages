@@ -841,6 +841,18 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       </div>
       <div id="pwd-change-msg" style="font-size:12px;margin-top:8px;display:none"></div>
     </div>
+    <div class="card" style="border-color:var(--green)">
+      <div class="card-title">💾 Sauvegarde & Restauration</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Exportez régulièrement vos données en JSON comme filet de sécurité.</div>
+      <div id="backup-check-result" style="display:none;margin-bottom:10px;padding:10px;border-radius:8px;font-size:12px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="checkAndExportBackup()">🔍 Vérifier & Exporter sauvegarde</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+          📂 Restaurer depuis fichier
+          <input type="file" accept=".json" style="display:none" onchange="importBackup(this)">
+        </label>
+      </div>
+    </div>
     <div class="danger-zone">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--red);margin-bottom:8px">⚠ Zone de danger</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -927,17 +939,39 @@ if(!_IS_LOCAL){
         window.saveToFirebase = async function(){
           try{
             window._isSyncing = true;
+            const newEntries  = JSON.parse(localStorage.getItem('mpe4-entries')   ||'[]');
+            const newProjects = JSON.parse(localStorage.getItem('mpe4-projects')  ||'[]');
+            const newUsers    = JSON.parse(localStorage.getItem('mpe4-users')     ||'[]');
+
+            // GARDE-FOU : ne jamais écrire si tout est vide
+            if(!newEntries.length && !newProjects.length && !newUsers.length){
+              console.warn('⛔ Sauvegarde annulée — données vides, protection anti-perte');
+              return;
+            }
+
+            // GARDE-FOU : ne pas écraser si on perd plus de 20% des pointages
+            try {
+              const snap = await DATA_REF.get();
+              if(snap.exists){
+                const fbEntries = (snap.data().entries||[]).length;
+                if(fbEntries > 5 && newEntries.length < fbEntries * 0.8){
+                  console.warn('⛔ Sauvegarde annulée — perte détectée:', fbEntries, '→', newEntries.length);
+                  return;
+                }
+              }
+            } catch(e){ /* si la vérif échoue on continue quand même */ }
+
             const data={
-              entries:   JSON.parse(localStorage.getItem('mpe4-entries')   ||'[]'),
+              entries:   newEntries,
               presences: JSON.parse(localStorage.getItem('mpe4-presences') ||'{}'),
-              projects:  JSON.parse(localStorage.getItem('mpe4-projects')  ||'[]'),
-              users:     JSON.parse(localStorage.getItem('mpe4-users')     ||'[]'),
+              projects:  newProjects,
+              users:     newUsers.length ? newUsers : DEF_USERS,
               wbs:       JSON.parse(localStorage.getItem('mpe4-wbs')       ||'[]'),
               tasks:     JSON.parse(localStorage.getItem('mpe4-tasks')     ||'[]'),
               updatedAt: new Date().toISOString()
             };
             await DATA_REF.set(data);
-            console.log('✅ Firebase sync');
+            console.log('✅ Firebase sync —', newEntries.length, 'entries,', newProjects.length, 'projets');
           }catch(e){console.warn('⚠️ Firebase save:',e.message);}
           finally{ setTimeout(()=>{window._isSyncing=false;},2000); }
         };
@@ -2747,6 +2781,104 @@ function renderCalMonth(ct,mine){
   gridHtml+=`</div>`;
   ct.innerHTML=_calNav()+gridHtml;
   document.getElementById('cal-nav-title').textContent=title;
+}
+
+
+// ════════ SAUVEGARDE & GARDE-FOUS ════════
+
+function checkAndExportBackup() {
+  const el = document.getElementById('backup-check-result');
+  const entriesData  = JSON.parse(localStorage.getItem('mpe4-entries')  || '[]');
+  const projectsData = JSON.parse(localStorage.getItem('mpe4-projects') || '[]');
+  const usersData    = JSON.parse(localStorage.getItem('mpe4-users')    || '[]');
+  const presData     = JSON.parse(localStorage.getItem('mpe4-presences')|| '{}');
+  const wbsData      = JSON.parse(localStorage.getItem('mpe4-wbs')      || '[]');
+  const tasksData    = JSON.parse(localStorage.getItem('mpe4-tasks')    || '[]');
+
+  const issues = [];
+  if (!entriesData.length)  issues.push('⚠️ Aucun pointage trouvé');
+  if (!projectsData.length) issues.push('⚠️ Aucun projet trouvé');
+  if (!usersData.length)    issues.push('⚠️ Aucun utilisateur trouvé');
+
+  if (issues.length) {
+    el.style.display = '';
+    el.style.background = 'rgba(239,68,68,.1)';
+    el.style.border = '1px solid var(--red)';
+    el.style.color = 'var(--red)';
+    el.innerHTML = "<strong>Problèmes détectés :</strong><br>" + issues.join("<br>") + "<br><small>Vérifiez vos données avant d'exporter.</small>";
+    if (!confirm('Des problemes detectes. Exporter quand meme ?')) return;
+  } else {
+    el.style.display = '';
+    el.style.background = 'rgba(34,197,94,.1)';
+    el.style.border = '1px solid var(--green)';
+    el.style.color = 'var(--green)';
+    el.innerHTML = '✅ <strong>' + entriesData.length + ' pointages</strong>, ' + projectsData.length + ' projets, ' + usersData.length + ' utilisateurs — Données OK';
+  }
+
+  const backup = {
+    _version: 1,
+    _date: new Date().toISOString(),
+    _app: 'MPE-Pointages',
+    entries:   entriesData,
+    projects:  projectsData,
+    users:     usersData,
+    presences: presData,
+    wbs:       wbsData,
+    tasks:     tasksData,
+  };
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href     = url;
+  a.download = `MPE-Pointages-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data._app || data._app !== 'MPE-Pointages') {
+        alert('❌ Ce fichier ne semble pas être une sauvegarde MPE Pointages valide.');
+        return;
+      }
+      const summary = `Fichier du ${new Date(data._date).toLocaleDateString('fr-FR')}
+
+` +
+        `• ${(data.entries||[]).length} pointages
+` +
+        `• ${(data.projects||[]).length} projets
+` +
+        `• ${(data.users||[]).length} utilisateurs
+
+` +
+        `⚠️ Cette restauration remplacera toutes les données actuelles.
+Continuer ?`;
+      if (!confirm(summary)) return;
+
+      if (data.entries)   { localStorage.setItem('mpe4-entries',   JSON.stringify(data.entries));   entries   = data.entries; }
+      if (data.projects)  { localStorage.setItem('mpe4-projects',  JSON.stringify(data.projects));  projects  = data.projects; }
+      if (data.users)     { localStorage.setItem('mpe4-users',     JSON.stringify(data.users));     users     = data.users; }
+      if (data.presences) { localStorage.setItem('mpe4-presences', JSON.stringify(data.presences)); presences = data.presences; }
+      if (data.wbs)       { localStorage.setItem('mpe4-wbs',       JSON.stringify(data.wbs));       wbsList   = data.wbs; }
+      if (data.tasks)     { localStorage.setItem('mpe4-tasks',     JSON.stringify(data.tasks));     tasks     = data.tasks; }
+
+      saveToFirebase();
+      populateProjectSelects();
+      populateLockUsers();
+      alert('✅ Restauration réussie ! ' + (data.entries||[]).length + ' pointages rechargés.');
+    } catch(err) {
+      alert('❌ Erreur lors de la lecture du fichier : ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 // ════════ ADMIN ════════
