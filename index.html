@@ -945,12 +945,12 @@ if(!_IS_LOCAL){
         DATA_REF.get().then(snap=>{
           if(snap.exists){
             const d=snap.data();
-            if(d.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(d.entries));
-            if(d.presences) localStorage.setItem('mpe4-presences', JSON.stringify(d.presences));
-            if(d.projects)  localStorage.setItem('mpe4-projects',  JSON.stringify(d.projects));
-            if(d.users)     localStorage.setItem('mpe4-users',     JSON.stringify(d.users));
-            if(d.wbs)       localStorage.setItem('mpe4-wbs',       JSON.stringify(d.wbs));
-            if(d.tasks)     localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
+            if(d.entries)             localStorage.setItem('mpe4-entries',   JSON.stringify(d.entries));
+            if(d.presences)           localStorage.setItem('mpe4-presences', JSON.stringify(d.presences));
+            if(d.projects)            localStorage.setItem('mpe4-projects',  JSON.stringify(d.projects));
+            if(d.users&&d.users.length) localStorage.setItem('mpe4-users',   JSON.stringify(d.users));
+            if(d.wbs)                 localStorage.setItem('mpe4-wbs',       JSON.stringify(d.wbs));
+            if(d.tasks)               localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
           }
           if(window._mpeReload) window._mpeReload();
         }).catch(e=>{console.warn('⚠️ Firebase load:',e.message);if(window._mpeReload)window._mpeReload();});
@@ -963,7 +963,8 @@ if(!_IS_LOCAL){
             if(d.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(d.entries));
             if(d.presences) localStorage.setItem('mpe4-presences', JSON.stringify(d.presences));
             if(d.projects)  localStorage.setItem('mpe4-projects',  JSON.stringify(d.projects));
-            if(d.users)     localStorage.setItem('mpe4-users',     JSON.stringify(d.users));
+            // Ne pas écraser users avec un tableau vide
+            if(d.users&&d.users.length)  localStorage.setItem('mpe4-users', JSON.stringify(d.users));
             if(d.wbs)       localStorage.setItem('mpe4-wbs',       JSON.stringify(d.wbs));
             if(d.tasks)     localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
             window._mpeReload();
@@ -1169,15 +1170,15 @@ window.addEventListener('DOMContentLoaded',()=>{
 
 let _lockSelectedUid=null;
 function populateLockUsers(){
-  // Select caché (header)
   const sel=document.getElementById('main-user-sel');
   if(sel){sel.innerHTML=users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');if(currentUser)sel.value=currentUser.id;}
-  // Cartes landing page
   const cards=document.getElementById('lock-user-cards');if(!cards)return;
   const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c',alternant:'#7c3aed',presta:'#0e7490'};
   const TL={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Admin',alternant:'Alternant',presta:'Prestataire'};
-  // N'afficher que les utilisateurs actifs sur la page d'accueil
-  const activeUsers=users.filter(u=>u.active!==false);
+  // Utiliser DEF_USERS si users est vide
+  const src = (users && users.length) ? users : DEF_USERS;
+  const activeUsers=src.filter(u=>u.active!==false);
+  if(!activeUsers.length) return; // ne pas écraser si vide
   cards.innerHTML=activeUsers.map(u=>`<div onclick="lockSelectUser('${u.id}')" data-uid="${u.id}"
     style="width:128px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;cursor:pointer;transition:all .2s;user-select:none"
     onmouseover="if(this.dataset.uid!=='${u.id}'||'${u.id}'!==_lockSelectedUid){this.style.background='rgba(255,255,255,.08)';this.style.borderColor='rgba(201,79,12,.4)';this.style.transform='translateY(-2px)'}"
@@ -3792,9 +3793,12 @@ window._mpeReload=function(){
     entries=S('mpe4-entries')||[];
     presences=S('mpe4-presences')||{};
     projects=S('mpe4-projects')||DEF_PROJECTS;
-    users=S('mpe4-users')||DEF_USERS;
+    const fbUsers=S('mpe4-users');
+    users=(fbUsers&&fbUsers.length)?fbUsers:DEF_USERS; // jamais vide
     wbsList=S('mpe4-wbs')||DEF_WBS;
     tasks=S('mpe4-tasks')||DEF_TASKS;
+    // Si Firebase a écrasé les users avec [], réécrire DEF_USERS
+    if(!S('mpe4-users')||!S('mpe4-users').length){W('mpe4-users',DEF_USERS);}
     populateProjectSelects();populateLockUsers();
     if(currentUser){renderPresences();renderTodayList();update35hCounter();}
     console.log('🔄 MPE rechargé');
