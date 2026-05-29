@@ -508,9 +508,12 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <div id="proj-page-list"></div>
   </div>
 
-  <!-- Tab: Nouveau projet -->
+  <!-- Tab: Nouveau / Modifier projet -->
   <div id="proj-tab-nouveau" style="display:none">
     <div style="max-width:500px">
+      <div id="pcf-edit-banner" style="display:none;background:var(--accent);color:#fff;border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:12px;font-weight:600">
+        ✏️ Mode édition — <span id="pcf-edit-code-lbl"></span>
+      </div>
       <div class="field-group">
         <label class="field-label">Code projet (ex: ESSA-01)</label>
         <input class="field" type="text" id="pcf-code" placeholder="XXXX-01" style="font-family:monospace;text-transform:uppercase">
@@ -520,7 +523,21 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         <input class="field" type="text" id="pcf-label" placeholder="Nom client">
       </div>
       <div class="field-group">
-        <label class="field-label">Statut initial</label>
+        <label class="field-label">Description (optionnel)</label>
+        <input class="field" type="text" id="pcf-desc" placeholder="Description courte du projet">
+      </div>
+      <div class="field-group">
+        <label class="field-label">BU</label>
+        <select class="field" id="pcf-bu">
+          <option value="">— Sélectionner —</option>
+          <option value="MPE SYSTEMS">MPE SYSTEMS</option>
+          <option value="MPE EQUIPEMENT">MPE EQUIPEMENT</option>
+          <option value="MPE SERVICE">MPE SERVICE</option>
+          <option value="MPE DEVELOPPEMENT">MPE DEVELOPPEMENT</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Statut</label>
         <select class="field" id="pcf-status">
           <option value="avp">AVP</option>
           <option value="encours">En cours</option>
@@ -528,7 +545,10 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         </select>
       </div>
       <div id="pcf-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none"></div>
-      <button class="btn btn-primary" onclick="createProject()">✓ Créer le projet</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="pcf-btn-save" onclick="saveProject()">✓ Créer le projet</button>
+        <button class="btn" id="pcf-btn-cancel" style="display:none;background:var(--bg);border:1px solid var(--border)" onclick="cancelEditProject()">Annuler</button>
+      </div>
     </div>
   </div>
 
@@ -2544,6 +2564,8 @@ const CAL_START=7*60, CAL_END=20*60, CAL_H=780;
 const CAL_COLORS=['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316'];
 
 function _projColor(code){
+  const p=projects.find(x=>x.code===code);
+  if(p&&p.bu){const BU_COLORS={'MPE SYSTEMS':'#7C6FE0','MPE EQUIPEMENT':'#4DE0A0','MPE SERVICE':'#4FA8E8','MPE DEVELOPPEMENT':'#F0B429'};if(BU_COLORS[p.bu])return BU_COLORS[p.bu];}
   const idx=projects.findIndex(p=>p.code===code);
   return CAL_COLORS[idx>=0?idx%CAL_COLORS.length:0];
 }
@@ -3071,8 +3093,12 @@ function renderProjList(){
     return`<div class="card" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
         <div>
-          <div style="font-family:monospace;font-size:11px;color:var(--accent);font-weight:700">${p.code}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div style="font-family:monospace;font-size:11px;color:var(--accent);font-weight:700">${p.code}</div>
+            ${p.bu?`<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;background:${_buColor(p.bu)}22;color:${_buColor(p.bu)}">${p.bu}</span>`:''}
+          </div>
           <div style="font-size:14px;font-weight:600">${p.label}</div>
+          ${p.desc?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${p.desc}</div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="badge badge-${p.status}">${p.status}</span>
@@ -3084,6 +3110,7 @@ function renderProjList(){
             <option value="standby"${p.status==='standby'?' selected':''}>Stand-by</option>
             <option value="termine"${p.status==='termine'?' selected':''}>Terminé</option>
           </select>
+          <button onclick="editProject('${p.code}')" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 5px" title="Modifier">✏️</button>
           <button class="cfg-del" onclick="deleteProject('${p.code}')">✕</button>
         </div>
       </div>
@@ -3100,20 +3127,82 @@ function deleteProject(code){
   projects=projects.filter(p=>p.code!==code);
   WS('mpe4-projects',projects);renderProjList();populateProjectSelects();
 }
-function createProject(){
-  const code=document.getElementById('pcf-code').value.trim().toUpperCase();
-  const label=document.getElementById('pcf-label').value.trim();
-  const status=document.getElementById('pcf-status').value;
-  const err=document.getElementById('pcf-err');
-  if(!code||!label){err.style.display='block';err.textContent='Code et nom requis.';return;}
-  if(projects.find(p=>p.code===code)){err.style.display='block';err.textContent='Code déjà existant.';return;}
-  err.style.display='none';
-  projects.push({code,label,status});
-  WS('mpe4-projects',projects);
-  document.getElementById('pcf-code').value='';document.getElementById('pcf-label').value='';
-  populateProjectSelects();
-  alert(`Projet ${code} créé ✓`);
+let _editProjCode = null;
+
+function _buColor(bu) {
+  const BU_COLORS = {
+    'MPE SYSTEMS':      '#7C6FE0',
+    'MPE EQUIPEMENT':   '#4DE0A0',
+    'MPE SERVICE':      '#4FA8E8',
+    'MPE DEVELOPPEMENT':'#F0B429',
+  };
+  return BU_COLORS[bu] || '#888888';
 }
+
+function editProject(code) {
+  const p = projects.find(x => x.code === code);
+  if (!p) return;
+  _editProjCode = code;
+  // Switch to form tab
+  setProjTab('nouveau', document.querySelector('#proj-tabs .chip:nth-child(2)'));
+  document.getElementById('pcf-code').value    = p.code;
+  document.getElementById('pcf-code').disabled = true;
+  document.getElementById('pcf-label').value   = p.label;
+  document.getElementById('pcf-desc').value    = p.desc  || '';
+  document.getElementById('pcf-bu').value      = p.bu    || '';
+  document.getElementById('pcf-status').value  = p.status || 'encours';
+  document.getElementById('pcf-edit-banner').style.display = '';
+  document.getElementById('pcf-edit-code-lbl').textContent = p.code + ' — ' + p.label;
+  document.getElementById('pcf-btn-save').textContent = '✓ Enregistrer les modifications';
+  document.getElementById('pcf-btn-cancel').style.display = '';
+  document.getElementById('pcf-err').style.display = 'none';
+}
+
+function cancelEditProject() {
+  _editProjCode = null;
+  document.getElementById('pcf-code').value    = '';
+  document.getElementById('pcf-code').disabled = false;
+  document.getElementById('pcf-label').value   = '';
+  document.getElementById('pcf-desc').value    = '';
+  document.getElementById('pcf-bu').value      = '';
+  document.getElementById('pcf-status').value  = 'avp';
+  document.getElementById('pcf-edit-banner').style.display = 'none';
+  document.getElementById('pcf-btn-save').textContent = '✓ Créer le projet';
+  document.getElementById('pcf-btn-cancel').style.display = 'none';
+}
+
+function saveProject() {
+  const code  = document.getElementById('pcf-code').value.trim().toUpperCase();
+  const label = document.getElementById('pcf-label').value.trim();
+  const desc  = document.getElementById('pcf-desc').value.trim();
+  const bu    = document.getElementById('pcf-bu').value;
+  const status = document.getElementById('pcf-status').value;
+  const err = document.getElementById('pcf-err');
+  if (!code || !label) { err.style.display='block'; err.textContent='Code et nom requis.'; return; }
+  err.style.display = 'none';
+
+  if (_editProjCode) {
+    // MODE ÉDITION
+    projects = projects.map(p => p.code === _editProjCode ? {...p, label, desc, bu, status} : p);
+    WS('mpe4-projects', projects);
+    cancelEditProject();
+    setProjTab('liste', document.querySelector('#proj-tabs .chip:nth-child(1)'));
+    populateProjectSelects();
+  } else {
+    // CRÉATION
+    if (projects.find(p => p.code === code)) { err.style.display='block'; err.textContent='Code déjà existant.'; return; }
+    projects.push({code, label, desc, bu, status});
+    WS('mpe4-projects', projects);
+    document.getElementById('pcf-code').value  = '';
+    document.getElementById('pcf-label').value = '';
+    document.getElementById('pcf-desc').value  = '';
+    document.getElementById('pcf-bu').value    = '';
+    populateProjectSelects();
+    alert(`Projet ${code} créé ✓`);
+  }
+}
+
+function createProject() { saveProject(); }
 function renderWbsList(){
   const el=document.getElementById('wbs-list');if(!el)return;
   el.innerHTML=wbsList.map(w=>`<div class="cfg-item">
