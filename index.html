@@ -896,6 +896,7 @@ if(!_IS_LOCAL){
 
         window.saveToFirebase = async function(){
           try{
+            window._isSyncing = true;
             const data={
               entries:   JSON.parse(localStorage.getItem('mpe4-entries')   ||'[]'),
               presences: JSON.parse(localStorage.getItem('mpe4-presences') ||'{}'),
@@ -908,6 +909,7 @@ if(!_IS_LOCAL){
             await DATA_REF.set(data);
             console.log('✅ Firebase sync');
           }catch(e){console.warn('⚠️ Firebase save:',e.message);}
+          finally{ setTimeout(()=>{window._isSyncing=false;},2000); }
         };
 
         DATA_REF.get().then(snap=>{
@@ -924,6 +926,8 @@ if(!_IS_LOCAL){
         }).catch(e=>{console.warn('⚠️ Firebase load:',e.message);if(window._mpeReload)window._mpeReload();});
 
         DATA_REF.onSnapshot(snap=>{
+          // Ignorer les snapshots déclenchés par nos propres écritures
+          if(window._isSyncing) return;
           if(snap.exists&&window._mpeReload){
             const d=snap.data();
             if(d.entries)   localStorage.setItem('mpe4-entries',   JSON.stringify(d.entries));
@@ -1076,8 +1080,9 @@ const W=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 // Auto-sync Firebase — uniquement après que Firebase ait chargé les données
 let _fbSyncTimer=null;
 let _firebaseReady=false;
+let _isSyncing=false; // empêche la boucle onSnapshot → saveToFirebase → onSnapshot
 const _autoSync=()=>{
-  if(!_firebaseReady)return; // pas de sync avant chargement Firebase
+  if(!_firebaseReady)return;
   clearTimeout(_fbSyncTimer);
   _fbSyncTimer=setTimeout(()=>saveToFirebase(),1500);
 };
