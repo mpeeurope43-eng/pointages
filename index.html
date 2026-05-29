@@ -598,7 +598,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       <div class="card">
         <div class="card-title">📋 Tâches N3</div>
         <div class="add-form" style="flex-wrap:wrap">
-          <select class="field" id="nt-proj" style="min-width:120px" onchange="ntAutoNum()"><option value="">— Projet —</option></select>
+          <select class="field" id="nt-proj" style="min-width:120px" onchange="ntAutoNum();renderTaskList()"><option value="">— Projet —</option></select>
           <select class="field" id="nt-wbs" style="min-width:120px" onchange="ntAutoNum()"><option value="">— WBS —</option></select>
           <input class="field" type="number" id="nt-n2" placeholder="N2" style="max-width:55px;text-align:center" min="1" title="Sous-poste N2">
           <input type="hidden" id="nt-num" value="">
@@ -1399,10 +1399,14 @@ function renderUserUI(){
     if(btn)btn.style.display=show?'':'none';
   });
 
+  const _TC={cadre:'#6B9FE4',horaire:'#4ADE80',admin:'#FB923C',alternant:'#A78BFA',presta:'#22D3EE'};
+  const _typeColor=_TC[currentUser.type]||'var(--ink)';
   document.getElementById('hdr-dot').textContent=initials(currentUser.name);
   document.getElementById('hdr-dot').className='user-dot '+currentUser.type;
   document.getElementById('hdr-name').textContent=currentUser.name;
+  document.getElementById('hdr-name').style.color=_typeColor;
   document.getElementById('hdr-type').textContent=TYPE_LABELS[currentUser.type]||currentUser.type;
+  document.getElementById('hdr-type').style.color=_typeColor;
   document.getElementById('admin-export-block').style.display=isAdmin?'block':'none';
   update35hCounter();
 }
@@ -2703,6 +2707,14 @@ function renderCalWeek(ct,mine){
     const over8=totH>8;
     const today=isToday(d);
 
+    // Vérifier si absent ce jour
+    const _presKey=currentUser?`${currentUser.id}_${ds(d)}`:null;
+    const _pres=_presKey&&presences?presences[_presKey]:null;
+    const _absVal=_pres?.abs||'';
+    const _ABS_LABELS={'conges':'Congés','maladie':'Maladie','absent_open':'Absent','cp':'CP','rtt':'RTT','formation':'Formation'};
+    const isAbsDay=_absVal&&!['present','tt','dep','ecole','ferie',''].includes(_absVal);
+    const absLabel=isAbsDay?(_ABS_LABELS[_absVal]||'Absent'):'';
+
     // Barre de progression visuelle
     const pct=Math.min(totH/8*100,100);
     const barColor=over8?'#ef4444':totH>=7?'#f97316':'#22c55e';
@@ -2730,8 +2742,11 @@ function renderCalWeek(ct,mine){
       <div style="padding:8px 0 6px;border-bottom:1px solid var(--border);margin-bottom:8px;${today?'border-bottom-color:#3b82f6;border-bottom-width:2px':''}">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${today?'#3b82f6':'var(--muted)'}">${JOURS_FR[d.getDay()]} ${d.getDate()}</div>
-            ${totMs?`<div style="font-family:monospace;font-size:13px;font-weight:600;color:${over8?'#ef4444':today?'#3b82f6':'var(--ink)'};margin-top:1px">${fmtH(totMs)}</div>`:'<div style="font-size:11px;color:var(--muted)">0h</div>'}
+            <div style="display:flex;align-items:center;gap:5px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${isAbsDay?'#ef4444':today?'#3b82f6':'var(--muted)'}">${JOURS_FR[d.getDay()]} ${d.getDate()}</div>
+            ${isAbsDay?`<span style="font-size:9px;font-weight:700;background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:4px;padding:1px 5px">${absLabel}</span>`:''}
+          </div>
+            ${totMs?`<div style="font-family:monospace;font-size:13px;font-weight:600;color:${over8?'#ef4444':today?'#3b82f6':'var(--ink)'};margin-top:1px">${fmtH(totMs)}</div>`:isAbsDay?'':'<div style="font-size:11px;color:var(--muted)">0h</div>'}
           </div>
           <button onclick="openQuickAdd('${ds(d)}')" title="Ajouter un pointage" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:15px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0">＋</button>
         </div>
@@ -3419,7 +3434,15 @@ function addWbs(){
 }
 function renderTaskList(){
   const el=document.getElementById('task-list');if(!el)return;
-  el.innerHTML=tasks.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${String(t.wbs).replace(/^-/,"")}</span><span class="cfg-label">${(()=>{const n1=String(t.wbs).replace(/^-/,'').split('-')[0];const w=wbsList.find(x=>x.code===n1);return w?w.label+' / ':''})()}${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
+  const selProj=document.getElementById('nt-proj')?.value||'';
+  const filtered=selProj?tasks.filter(t=>t.proj===selProj):tasks;
+  if(!filtered.length){
+    el.innerHTML=selProj
+      ?'<div style="font-size:12px;color:var(--muted);padding:10px;text-align:center">Aucune tâche pour ce projet</div>'
+      :'<div style="font-size:12px;color:var(--muted);padding:10px;text-align:center">Sélectionnez un projet pour voir ses tâches</div>';
+    return;
+  }
+  el.innerHTML=filtered.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${String(t.wbs).replace(/^-/,"")}</span><span class="cfg-label">${(()=>{const n1=String(t.wbs).replace(/^-/,'').split('-')[0];const w=wbsList.find(x=>x.code===n1);return w?w.label+' / ':''})()}${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
 }
 // Suggère le prochain N° libre pour proj+wbs
 function ntAutoNum(){
