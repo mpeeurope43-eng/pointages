@@ -2707,13 +2707,21 @@ function renderCalWeek(ct,mine){
     const over8=totH>8;
     const today=isToday(d);
 
-    // Vérifier si absent ce jour
+    // Vérifier si absent ce jour (gère les 2 formats : pres.abs et pres.matin/apmidi)
     const _presKey=currentUser?`${currentUser.id}_${ds(d)}`:null;
     const _pres=_presKey&&presences?presences[_presKey]:null;
+    const _ABS_LABELS={'conges':'CP','maladie':'Maladie','absent':'Absent','absent_open':'Absent','cp':'CP','rtt':'RTT','formation':'Formation','conge':'CP'};
+    const _isAbsVal=v=>v&&!['present','tt','dep','ecole','ferie',''].includes(v);
     const _absVal=_pres?.abs||'';
-    const _ABS_LABELS={'conges':'Congés','maladie':'Maladie','absent_open':'Absent','cp':'CP','rtt':'RTT','formation':'Formation'};
-    const isAbsDay=_absVal&&!['present','tt','dep','ecole','ferie',''].includes(_absVal);
-    const absLabel=isAbsDay?(_ABS_LABELS[_absVal]||'Absent'):'';
+    const _matinAbs=_pres?.matin||'';
+    const _apmidiAbs=_pres?.apmidi||'';
+    const _bothAbs=_isAbsVal(_matinAbs)&&_isAbsVal(_apmidiAbs);
+    const _onlyMatin=_isAbsVal(_matinAbs)&&!_isAbsVal(_apmidiAbs);
+    const _onlyApmidi=!_isAbsVal(_matinAbs)&&_isAbsVal(_apmidiAbs);
+    const isAbsDay=_isAbsVal(_absVal)||_bothAbs||_onlyMatin||_onlyApmidi;
+    const _absMotif=_absVal||_matinAbs||_apmidiAbs||'';
+    const _absBase=_ABS_LABELS[_absMotif]||'Absent';
+    const absLabel=isAbsDay?(_onlyMatin?_absBase+' M':_onlyApmidi?_absBase+' AM':_absBase):'';
 
     // Barre de progression visuelle
     const pct=Math.min(totH/8*100,100);
