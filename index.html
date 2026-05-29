@@ -1120,6 +1120,21 @@ window.addEventListener('DOMContentLoaded',()=>{
   // Ne pas auto-connecter — on veut la page d'accueil
   const savedChrono=S('mpe4-chrono-state');
   if(savedChrono&&currentUser){showChronoRecover(savedChrono);}
+  // Fallback : si Firebase ne répond pas dans 4s, charger depuis localStorage quand même
+  setTimeout(()=>{
+    if(!_firebaseReady){
+      console.log('⏱ Firebase timeout — chargement depuis localStorage');
+      _firebaseReady=true;
+      users=S('mpe4-users')||DEF_USERS;
+      projects=S('mpe4-projects')||DEF_PROJECTS;
+      wbsList=S('mpe4-wbs')||DEF_WBS;
+      tasks=S('mpe4-tasks')||DEF_TASKS;
+      entries=S('mpe4-entries')||[];
+      presences=S('mpe4-presences')||{};
+      populateLockUsers();
+      populateProjectSelects();
+    }
+  }, 4000);
 });
 
 let _lockSelectedUid=null;
