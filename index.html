@@ -3174,10 +3174,12 @@ function renderSuivi(){
   const fmtH2=ms=>{const h=Math.floor(ms/3600000),mn=Math.floor((ms%3600000)/60000);return mn>0?`${h}h${String(mn).padStart(2,'0')}`:`${h}h`;};
   const totalMs=projEntries.reduce((s,e)=>s+e.ms,0);
 
-  // Par WBS global
+  // Par WBS global — clé = n1+taskNum pour avoir le code complet
   const byWbs={};
   projEntries.forEach(e=>{
-    const wKey=e.wbs||'—';
+    const n1=String(e.wbs||'').replace(/^-/,'').trim();
+    const n2=e.taskNum?String(e.taskNum).trim():'';
+    const wKey=n2?`${n1}-${n2}`:(n1||'—');
     if(!byWbs[wKey])byWbs[wKey]=0;
     byWbs[wKey]+=e.ms;
   });
@@ -3187,7 +3189,9 @@ function renderSuivi(){
   projEntries.forEach(e=>{
     if(!byUser[e.userId])byUser[e.userId]={ms:0,byWbs:{}};
     byUser[e.userId].ms+=e.ms;
-    const wKey=e.wbs||'—';
+    const n1=String(e.wbs||'').replace(/^-/,'').trim();
+    const n2=e.taskNum?String(e.taskNum).trim():'';
+    const wKey=n2?`${n1}-${n2}`:(n1||'—');
     if(!byUser[e.userId].byWbs[wKey])byUser[e.userId].byWbs[wKey]={ms:0,byTask:{}};
     byUser[e.userId].byWbs[wKey].ms+=e.ms;
     const tKey=e.task||'—';
@@ -3195,7 +3199,22 @@ function renderSuivi(){
     byUser[e.userId].byWbs[wKey].byTask[tKey]+=e.ms;
   });
 
-  const wbsLbl=code=>{const w=wbsList.find(x=>x.code===code);return w?`${code} · ${w.label}`:code;};
+  // Résoudre nom utilisateur — cherche par id ET par name
+  const resolveUser=uid=>{
+    const u=users.find(x=>x.id===uid||x.name===uid);
+    if(u)return u;
+    // Fallback : chercher dans les entries par userId
+    const e=projEntries.find(x=>x.userId===uid);
+    return e&&e.user?{name:e.user,id:uid}:null;
+  };
+
+  const wbsLbl=code=>{
+    // code peut être "2" ou "2-1"
+    const parts=code.split('-');
+    const w=wbsList.find(x=>x.code===parts[0]);
+    const wLabel=w?`${parts[0]} · ${w.label}`:code;
+    return parts.length>1?`${wLabel} / N2-${parts[1]}`:wLabel;
+  };
 
   el.innerHTML=`
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
@@ -3232,14 +3251,14 @@ function renderSuivi(){
   <div class="card">
     <div class="card-title">👥 Détail par collaborateur</div>
     ${Object.entries(byUser).sort((a,b)=>b[1].ms-a[1].ms).map(([uid,data])=>{
-      const u=users.find(x=>x.id===uid);
+      const u=resolveUser(uid);
       const ini=u?u.name.split(' ').map(n=>n[0]).join('').substring(0,2):'?';
       const pct=Math.round(data.ms/totalMs*100);
       return `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
           <div style="width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${ini}</div>
           <div style="flex:1">
-            <div style="font-weight:600;font-size:13px">${u?u.name:'Inconnu'}</div>
+            <div style="font-weight:600;font-size:13px">${u?u.name:(uid||'Inconnu')}</div>
             <div style="font-size:11px;color:var(--muted)">${pct}% du total</div>
           </div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:var(--accent)">${fmtH2(data.ms)}</div>
