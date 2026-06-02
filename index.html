@@ -3201,6 +3201,20 @@ function renderSuivi(){
     byWbs[wKey].ms+=e.ms;
   });
 
+  // Post-traitement : fusionner N1-seul avec N1-N2 si c'est le seul N2 existant
+  const keys = Object.keys(byWbs);
+  keys.forEach(k => {
+    if (!k.includes('-')) {
+      // chercher si un seul N2 existe pour ce N1
+      const n2keys = keys.filter(k2 => k2.startsWith(k+'-'));
+      if (n2keys.length === 1) {
+        // fusionner N1-seul dans N1-N2
+        byWbs[n2keys[0]].ms += byWbs[k].ms;
+        delete byWbs[k];
+      }
+    }
+  });
+
   const byUser={};
   projEntries.forEach(e=>{
     if(!byUser[e.userId])byUser[e.userId]={ms:0,byWbs:{}};
@@ -3211,6 +3225,25 @@ function renderSuivi(){
     const tKey=e.task||'—';
     if(!byUser[e.userId].byWbs[wKey].byTask[tKey])byUser[e.userId].byWbs[wKey].byTask[tKey]=0;
     byUser[e.userId].byWbs[wKey].byTask[tKey]+=e.ms;
+  });
+
+  // Fusionner N1-seul dans N1-N2 pour chaque user aussi
+  Object.values(byUser).forEach(ud => {
+    const ukeys = Object.keys(ud.byWbs);
+    ukeys.forEach(k => {
+      if (!k.includes('-')) {
+        const n2keys = ukeys.filter(k2 => k2.startsWith(k+'-'));
+        if (n2keys.length === 1) {
+          ud.byWbs[n2keys[0]].ms += ud.byWbs[k].ms;
+          Object.entries(ud.byWbs[k].byTask).forEach(([t,ms]) => {
+            if(!ud.byWbs[n2keys[0]].byTask[t]) ud.byWbs[n2keys[0]].byTask[t]=0;
+            ud.byWbs[n2keys[0]].byTask[t]+=ms;
+          });
+          ud.ms = Object.values(ud.byWbs).reduce((s,v)=>s+v.ms,0);
+          delete ud.byWbs[k];
+        }
+      }
+    });
   });
 
   // Résoudre nom utilisateur — cherche par id ET par name
@@ -4004,11 +4037,12 @@ window._mpeReload=function(){
     tasks=S('mpe4-tasks')||DEF_TASKS;
     if(!S('mpe4-users')||!S('mpe4-users').length){W('mpe4-users',DEF_USERS);}
 
-    // Dédupliquer les entrées (même userId + même date + même ms + même project)
+    // Dédupliquer les entrées — clé souple : userId + date + project + wbs + taskNum + ms arrondi à la minute
     const seen=new Set();
     const before=entries.length;
     entries=entries.filter(e=>{
-      const key=`${e.userId}|${e.date}|${e.project}|${e.wbs}|${e.taskNum||''}|${e.ms}`;
+      const msRound = Math.round((e.ms||0) / 60000); // arrondi à la minute
+      const key=`${e.userId}|${e.date}|${e.project}|${String(e.wbs||'')}|${e.taskNum||''}|${msRound}`;
       if(seen.has(key))return false;
       seen.add(key);
       return true;
