@@ -943,23 +943,25 @@ if(!_IS_LOCAL){
             const newProjects = JSON.parse(localStorage.getItem('mpe4-projects')  ||'[]');
             const newUsers    = JSON.parse(localStorage.getItem('mpe4-users')     ||'[]');
 
-            // GARDE-FOU : ne jamais écrire si tout est vide
-            if(!newEntries.length && !newProjects.length && !newUsers.length){
-              console.warn('⛔ Sauvegarde annulée — données vides, protection anti-perte');
-              return;
-            }
-
-            // GARDE-FOU : ne pas écraser si on perd plus de 20% des pointages
-            try {
-              const snap = await DATA_REF.get();
-              if(snap.exists){
-                const fbEntries = (snap.data().entries||[]).length;
-                if(fbEntries > 5 && newEntries.length < fbEntries * 0.8){
-                  console.warn('⛔ Sauvegarde annulée — perte détectée:', fbEntries, '→', newEntries.length);
-                  return;
-                }
+            // GARDE-FOU : bloquer uniquement au démarrage si local est vide
+            // (protège contre le vidage accidentel au chargement avant Firebase)
+            // Les actions utilisateur explicites passent toujours
+            if(!_userHasActed){
+              if(!newEntries.length && !newProjects.length && !newUsers.length){
+                console.warn('⛔ Sauvegarde annulée — données vides au démarrage');
+                return;
               }
-            } catch(e){ /* si la vérif échoue on continue quand même */ }
+              try {
+                const snap = await DATA_REF.get();
+                if(snap.exists){
+                  const fbEntries = (snap.data().entries||[]).length;
+                  if(fbEntries > 10 && newEntries.length === 0){
+                    console.warn('⛔ Sauvegarde annulée — entries vides au démarrage, Firebase a', fbEntries, 'entrées');
+                    return;
+                  }
+                }
+              } catch(e){}
+            }
 
             const data={
               entries:   newEntries,
@@ -2029,6 +2031,7 @@ function getTaskNum(proj, wbs, taskLabel){
 
 function saveEntry(e){
   if(!currentUser)return;
+  _userHasActed = true;
   entries.unshift({id:Date.now(),userId:currentUser.id,user:currentUser.name,...e});
   WS('mpe4-entries',entries);
   renderTodayList();
@@ -2036,6 +2039,7 @@ function saveEntry(e){
 }
 function deleteEntry(id){
   if(!confirm('Supprimer cette saisie ?'))return;
+  _userHasActed = true;
   entries=entries.filter(e=>e.id!==id);
   WS('mpe4-entries',entries);
   renderTodayList();
@@ -3369,7 +3373,9 @@ function deleteProject(code){
   projects=projects.filter(p=>p.code!==code);
   WS('mpe4-projects',projects);renderProjList();populateProjectSelects();
 }
-let _editProjCode = null;
+let _userHasActed = false; // passe à true dès qu'une action utilisateur est faite
+
+
 
 function _buColor(bu) {
   const BU_COLORS = {
