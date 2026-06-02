@@ -3249,11 +3249,12 @@ function renderSuivi(){
 
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">📊 Répartition par WBS</div>
-    ${Object.entries(byWbs).sort((a,b)=>b[1]-a[1]).map(([wbs,ms])=>{
+    ${Object.entries(byWbs).sort((a,b)=>b[1].ms-a[1].ms).map(([wbs,data])=>{
+      const ms=data.ms;
       const pct=Math.round(ms/totalMs*100);
       return `<div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
-          <span style="color:var(--ink)">${wbsLbl(wbs, byWbs[wbs]?.task)}</span>
+          <span style="color:var(--ink)">${wbsLbl(wbs, data.task)}</span>
           <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent)">${fmtH2(ms)} <span style="color:var(--muted);font-weight:400">${pct}%</span></span>
         </div>
         <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
@@ -3986,17 +3987,32 @@ function exportParProjetPDF(){
 }
 
 window._mpeReload=function(){
-  _firebaseReady=true; // Firebase a chargé → les WS() peuvent maintenant syncer
+  _firebaseReady=true;
   try{
     entries=S('mpe4-entries')||[];
     presences=S('mpe4-presences')||{};
     projects=S('mpe4-projects')||DEF_PROJECTS;
     const fbUsers=S('mpe4-users');
-    users=(fbUsers&&fbUsers.length)?fbUsers:DEF_USERS; // jamais vide
+    users=(fbUsers&&fbUsers.length)?fbUsers:DEF_USERS;
     wbsList=S('mpe4-wbs')||DEF_WBS;
     tasks=S('mpe4-tasks')||DEF_TASKS;
-    // Si Firebase a écrasé les users avec [], réécrire DEF_USERS
     if(!S('mpe4-users')||!S('mpe4-users').length){W('mpe4-users',DEF_USERS);}
+
+    // Dédupliquer les entrées (même userId + même date + même ms + même project)
+    const seen=new Set();
+    const before=entries.length;
+    entries=entries.filter(e=>{
+      const key=`${e.userId}|${e.date}|${e.project}|${e.wbs}|${e.taskNum||''}|${e.ms}`;
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+    if(entries.length<before){
+      console.log(`🧹 ${before-entries.length} doublon(s) supprimé(s)`);
+      W('mpe4-entries',entries);
+      _autoSync();
+    }
+
     populateProjectSelects();populateLockUsers();
     if(currentUser){renderPresences();renderTodayList();update35hCounter();}
     console.log('🔄 MPE rechargé');
