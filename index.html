@@ -3174,24 +3174,34 @@ function renderSuivi(){
   const fmtH2=ms=>{const h=Math.floor(ms/3600000),mn=Math.floor((ms%3600000)/60000);return mn>0?`${h}h${String(mn).padStart(2,'0')}`:`${h}h`;};
   const totalMs=projEntries.reduce((s,e)=>s+e.ms,0);
 
-  // Par WBS global — clé = n1+taskNum pour avoir le code complet
-  const byWbs={};
-  projEntries.forEach(e=>{
+  // Normaliser la clé WBS : si même n1 et même tâche → fusionner sous n1-n2
+  // Construire une map tâche → n2 depuis la liste tasks
+  const taskToN2={};
+  tasks.filter(t=>t.proj===projCode).forEach(t=>{
+    if(t.num) taskToN2[`${t.wbs}|${t.label}`]=String(t.num);
+  });
+  const resolveKey=e=>{
     const n1=String(e.wbs||'').replace(/^-/,'').trim();
     const n2=e.taskNum?String(e.taskNum).trim():'';
-    const wKey=n2?`${n1}-${n2}`:(n1||'—');
-    if(!byWbs[wKey])byWbs[wKey]=0;
-    byWbs[wKey]+=e.ms;
+    if(n2) return `${n1}-${n2}`;
+    // Chercher le N2 depuis la config tâches
+    const mapped=taskToN2[`${n1}|${e.task}`];
+    if(mapped) return `${n1}-${mapped}`;
+    return n1||'—';
+  };
+
+  const byWbs={};
+  projEntries.forEach(e=>{
+    const wKey=resolveKey(e);
+    if(!byWbs[wKey])byWbs[wKey]={ms:0,task:e.task||''};
+    byWbs[wKey].ms+=e.ms;
   });
 
-  // Par utilisateur
   const byUser={};
   projEntries.forEach(e=>{
     if(!byUser[e.userId])byUser[e.userId]={ms:0,byWbs:{}};
     byUser[e.userId].ms+=e.ms;
-    const n1=String(e.wbs||'').replace(/^-/,'').trim();
-    const n2=e.taskNum?String(e.taskNum).trim():'';
-    const wKey=n2?`${n1}-${n2}`:(n1||'—');
+    const wKey=resolveKey(e);
     if(!byUser[e.userId].byWbs[wKey])byUser[e.userId].byWbs[wKey]={ms:0,byTask:{}};
     byUser[e.userId].byWbs[wKey].ms+=e.ms;
     const tKey=e.task||'—';
@@ -3208,12 +3218,17 @@ function renderSuivi(){
     return e&&e.user?{name:e.user,id:uid}:null;
   };
 
-  const wbsLbl=code=>{
-    // code peut être "2" ou "2-1"
+  const wbsLbl=(code,task)=>{
     const parts=code.split('-');
     const w=wbsList.find(x=>x.code===parts[0]);
-    const wLabel=w?`${parts[0]} · ${w.label}`:code;
-    return parts.length>1?`${wLabel} / N2-${parts[1]}`:wLabel;
+    const wLabel=w?w.label:('WBS '+parts[0]);
+    if(parts.length>1){
+      // Chercher la tâche correspondante
+      const t=tasks.find(x=>x.proj===projCode&&x.wbs===parts[0]&&String(x.num)===parts[1]);
+      const tLabel=t?t.label:(task||('Poste '+parts[1]));
+      return `${wLabel} / ${tLabel}`;
+    }
+    return `${parts[0]} · ${wLabel}`;
   };
 
   el.innerHTML=`
@@ -3238,7 +3253,7 @@ function renderSuivi(){
       const pct=Math.round(ms/totalMs*100);
       return `<div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
-          <span style="color:var(--ink)">${wbsLbl(wbs)}</span>
+          <span style="color:var(--ink)">${wbsLbl(wbs, byWbs[wbs]?.task)}</span>
           <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent)">${fmtH2(ms)} <span style="color:var(--muted);font-weight:400">${pct}%</span></span>
         </div>
         <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
@@ -3266,7 +3281,7 @@ function renderSuivi(){
         ${Object.entries(data.byWbs).sort((a,b)=>b[1].ms-a[1].ms).map(([wbs,wd])=>`
           <div style="margin-left:44px;margin-bottom:6px">
             <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-              <span style="color:var(--muted)">${wbsLbl(wbs)}</span>
+              <span style="color:var(--muted)">${wbsLbl(wbs, Object.keys(wd.byTask)[0])}</span>
               <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink);font-weight:600">${fmtH2(wd.ms)}</span>
             </div>
             ${Object.entries(wd.byTask).sort((a,b)=>b[1]-a[1]).map(([task,tms])=>`
