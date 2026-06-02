@@ -3227,23 +3227,32 @@ function renderSuivi(){
     byUser[e.userId].byWbs[wKey].byTask[tKey]+=e.ms;
   });
 
-  // Fusionner N1-seul dans N1-N2 pour chaque user aussi
+  // Après merge global, remapper les clés N1-seul restantes dans byUser
+  // vers leur équivalent N1-N2 si le global a fusionné
+  const globalKeys = Object.keys(byWbs);
   Object.values(byUser).forEach(ud => {
-    const ukeys = Object.keys(ud.byWbs);
-    ukeys.forEach(k => {
+    const remapped = {};
+    Object.entries(ud.byWbs).forEach(([k, v]) => {
       if (!k.includes('-')) {
-        const n2keys = ukeys.filter(k2 => k2.startsWith(k+'-'));
-        if (n2keys.length === 1) {
-          ud.byWbs[n2keys[0]].ms += ud.byWbs[k].ms;
-          Object.entries(ud.byWbs[k].byTask).forEach(([t,ms]) => {
-            if(!ud.byWbs[n2keys[0]].byTask[t]) ud.byWbs[n2keys[0]].byTask[t]=0;
-            ud.byWbs[n2keys[0]].byTask[t]+=ms;
-          });
-          ud.ms = Object.values(ud.byWbs).reduce((s,v)=>s+v.ms,0);
-          delete ud.byWbs[k];
-        }
+        // chercher si le global a une clé N1-N2 correspondante
+        const n2key = globalKeys.find(gk => gk.startsWith(k+'-'));
+        const finalKey = n2key || k;
+        if (!remapped[finalKey]) remapped[finalKey] = {ms:0, byTask:{}};
+        remapped[finalKey].ms += v.ms;
+        Object.entries(v.byTask).forEach(([t,ms]) => {
+          if(!remapped[finalKey].byTask[t]) remapped[finalKey].byTask[t]=0;
+          remapped[finalKey].byTask[t]+=ms;
+        });
+      } else {
+        if (!remapped[k]) remapped[k] = {ms:0, byTask:{}};
+        remapped[k].ms += v.ms;
+        Object.entries(v.byTask).forEach(([t,ms]) => {
+          if(!remapped[k].byTask[t]) remapped[k].byTask[t]=0;
+          remapped[k].byTask[t]+=ms;
+        });
       }
     });
+    ud.byWbs = remapped;
   });
 
   // Résoudre nom utilisateur — cherche par id ET par name
@@ -3318,8 +3327,11 @@ function renderSuivi(){
         </div>
         ${Object.entries(data.byWbs).sort((a,b)=>b[1].ms-a[1].ms).map(([wbs,wd])=>`
           <div style="margin-left:44px;margin-bottom:6px">
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-              <span style="color:var(--muted)">${wbsLbl(wbs, Object.keys(wd.byTask)[0])}</span>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;align-items:center">
+              <span style="display:flex;align-items:center;gap:6px">
+                <span style="font-family:monospace;font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:1px 5px">${projCode}-${wbs}</span>
+                <span style="color:var(--muted)">${wbsLbl(wbs, Object.keys(wd.byTask)[0])}</span>
+              </span>
               <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink);font-weight:600">${fmtH2(wd.ms)}</span>
             </div>
             ${Object.entries(wd.byTask).sort((a,b)=>b[1]-a[1]).map(([task,tms])=>`
