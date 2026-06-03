@@ -1791,6 +1791,9 @@ function populateProjectSelects(){
     sel.innerHTML='<option value="">— WBS —</option>';
     wbsList.forEach(w=>{const o=document.createElement('option');o.value=w.code;o.textContent=w.code+' · '+w.label;sel.appendChild(o)});
   });
+  // Uniquement pour nt-proj : relancer le filtre tâches si projet sélectionné
+  const ntProj=document.getElementById('nt-proj');
+  if(ntProj&&ntProj.value) renderTaskList();
 }
 function populateWbsSel(prefix){
   const ids={c:'cp-wbs',m:'mp-wbs',r:'rp-wbs'};
@@ -3554,6 +3557,16 @@ function renderTaskList(){
       <button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button>
     </div>`;
   }).join('');
+}
+
+function ntAutoNum(){
+  const proj=document.getElementById('nt-proj')?.value;
+  const wbs=document.getElementById('nt-wbs')?.value;
+  const el=document.getElementById('nt-n2');
+  if(!el)return;
+  if(!proj||!wbs){el.value='';return;}
+  const existing=tasks.filter(t=>t.proj===proj&&String(t.wbs).split('-')[0]===wbs).map(t=>parseInt(String(t.wbs).split('-')[1])||0).filter(n=>n>0);
+  el.value=existing.length?Math.max(...existing)+1:1;
 }
 
 function addTask(){
