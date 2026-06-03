@@ -3559,6 +3559,20 @@ function renderTaskList(){
   }).join('');
 }
 
+function filterTasksDedup(taskList, projCode) {
+  const n1WithN2 = new Set(
+    taskList.filter(t => t.proj===projCode && /^\d+-\d+/.test(t.wbs))
+            .map(t => t.wbs.split('-')[0])
+  );
+  return taskList.filter(t => {
+    if (t.proj !== projCode) return true;
+    const wbs = String(t.wbs).replace(/^-/,'');
+    const isN1Only = /^\d+$/.test(wbs);
+    if (isN1Only && n1WithN2.has(wbs)) return false;
+    return true;
+  });
+}
+
 function ntAutoNum(){
   const proj=document.getElementById('nt-proj')?.value;
   const wbs=document.getElementById('nt-wbs')?.value;
