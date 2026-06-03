@@ -3547,7 +3547,7 @@ function renderTaskList(){
     const w=wbsList.find(x=>x.code===n1);
     const lbl=(w?w.label+' / ':'')+t.label;
     const tIdx=tasks.indexOf(t);
-    return `<div class="cfg-item" style="${hasN2?'':'border-color:var(--red);background:rgba(239,68,68,.05)'}">
+    return `<div class="cfg-item" data-task-idx="${tIdx}" style="${hasN2?'':'border-color:var(--red);background:rgba(239,68,68,.05)'}">
       <span class="cfg-code" style="font-size:10px">${t.proj}-${wbsClean}${!hasN2?' <span style="color:var(--red)">⚠N2!</span>':''}</span>
       <span class="cfg-label">${lbl}</span>
       <button onclick="editTask(${tIdx})" style="border:none;background:none;cursor:pointer;color:var(--muted);padding:2px 5px;font-size:12px" title="Modifier">✏️</button>
@@ -3556,118 +3556,84 @@ function renderTaskList(){
   }).join('');
 }
 
-function editTask(idx){
-  const t=tasks[idx];if(!t)return;
-  const n1=String(t.wbs).split('-')[0];
-  const currentN2=String(t.wbs).split('-')[1]||'';
-
-  const n2=prompt(`N2 pour "${t.proj}-${t.wbs} / ${t.label}"\n\nActuel : ${currentN2||'(aucun)'}\nNouveau N2 (laisser vide = garder) :`, currentN2||'');
-  if(n2===null)return;
-  const n2clean=n2.trim();
-  if(n2clean && parseInt(n2clean)<=0){alert('N2 invalide.');return;}
-  const finalN2 = n2clean || currentN2;
-  if(!finalN2){alert('N2 obligatoire.');return;}
-
-  const newLabel=prompt(`Libellé pour "${t.proj}-${t.wbs}"\n\nActuel : ${t.label}\nNouveau libellé (laisser vide = garder) :`, t.label);
-  if(newLabel===null)return;
-  const finalLabel=newLabel.trim()||t.label;
-
-  const newWbs=n1+'-'+finalN2;
-  // Bloquer doublon N2 si changé
-  if(finalN2!==currentN2 && tasks.find((x,i)=>i!==idx&&x.proj===t.proj&&x.wbs===newWbs)){
-    alert('Ce N2 est déjà utilisé. Choisissez un autre.');return;
-  }
-  if(finalN2===currentN2 && finalLabel===t.label){return;} // rien changé
-
-  const oldWbsClean=String(t.wbs).replace(/^-/,'');
-  const oldLabel=t.label;
-  tasks[idx]={...t, wbs:newWbs, label:finalLabel};
-  WS('mpe4-tasks',tasks);
-
-  // Mettre à jour les pointages : wbs ET libellé de tâche
-  let updated=0;
-  entries=entries.map(e=>{
-    const eWbs=String(e.wbs||'').replace(/^-/,'');
-    const matchWbs = eWbs===oldWbsClean || eWbs===n1; // N1-N2 ou N1 seul
-    if(e.project===t.proj && matchWbs && e.task===oldLabel){
-      updated++;
-      return {...e, wbs:n1, taskNum:finalN2, task:finalLabel};
-    }
-    return e;
-  });
-  if(updated>0){
-    WS('mpe4-entries',entries);
-    _userHasActed=true;
-  }
-
-  renderTaskList();
-  populateProjectSelects();
-  if(updated>0) renderTodayList();
-  alert(`✓ Tâche mise à jour — ${updated} pointage(s) corrigé(s).`);
-}
-// Suggère le prochain N° libre pour proj+wbs
-function ntAutoNum(){
-  const proj=document.getElementById('nt-proj').value;
-  const wbs=document.getElementById('nt-wbs').value;
-  if(!proj||!wbs){document.getElementById('nt-num').value='';return;}
-  const existing=tasks.filter(t=>t.proj===proj&&t.wbs===wbs).map(t=>parseInt(t.num)||0);
-  const next=existing.length?Math.max(...existing)+1:1;
-  document.getElementById('nt-num').value=next;
-}
-
-
-function filterTasksDedup(taskList, projCode) {
-  const n1WithN2 = new Set(
-    taskList.filter(t => t.proj===projCode && /^\d+-\d+/.test(t.wbs))
-            .map(t => t.wbs.split('-')[0])
-  );
-  return taskList.filter(t => {
-    if (t.proj !== projCode) return true;
-    const wbs = String(t.wbs).replace(/^-/,'');
-    const isN1Only = /^\d+$/.test(wbs);
-    if (isN1Only && n1WithN2.has(wbs)) return false;
-    return true;
-  });
-}
-
 function addTask(){
   const proj=document.getElementById('nt-proj').value;
   const n1=document.getElementById('nt-wbs').value;
   const n2El=document.getElementById('nt-n2');
   const n2Raw=n2El?n2El.value.trim():'';
-  const n2=n2Raw && parseInt(n2Raw) > 0 ? n2Raw : ''; // ignorer 0 ou vide
+  const n2=n2Raw&&parseInt(n2Raw)>0?n2Raw:'';
   const wbs=n2?n1+'-'+n2:n1;
-  const num='';
   const label=document.getElementById('nt-label').value.trim();
   if(!proj||!n1||!label){alert('Projet, WBS et libellé requis.');return;}
-  if(!n2||parseInt(n2)<=0){alert('Le numéro N2 est obligatoire et doit être > 0.');return;}
-  if(tasks.find(t=>t.proj===proj&&t.wbs===wbs)){
-    alert(`Ce N2 (${wbs}) est déjà utilisé pour ce projet. Choisissez un autre numéro.`);return;
-  }
+  if(!n2||parseInt(n2)<=0){alert('Le numéro N2 est obligatoire (> 0).');return;}
   if(tasks.find(t=>t.proj===proj&&t.wbs===wbs&&t.label===label)){
     alert('Cette tâche existe déjà.');return;
   }
-  tasks.push({proj,wbs,num:num||'',label});
+  tasks.push({proj,wbs,num:'',label});
   WS('mpe4-tasks',tasks);
   document.getElementById('nt-label').value='';
-  ntAutoNum();
+  if(n2El) n2El.value='';
   renderTaskList();
+  populateProjectSelects();
 }
-function _parseTaskKey(key){
-  const [proj,wbs,num,label]=decodeURIComponent(key).split('||');
-  return{proj,wbs,num,label};
+
+
+function editTask(keyOrIdx){
+  let t, idx;
+  if(typeof keyOrIdx==='number'||(typeof keyOrIdx==='string'&&!keyOrIdx.includes('||')&&!isNaN(parseInt(keyOrIdx)))){
+    idx=parseInt(keyOrIdx); t=tasks[idx];
+  } else {
+    const {proj,wbs,num,label}=_parseTaskKey(keyOrIdx);
+    idx=tasks.findIndex(x=>x.proj===proj&&x.wbs===wbs&&String(x.num||'')===String(num||'')&&x.label===label);
+    t=tasks[idx];
+  }
+  if(!t||idx<0){alert('Tâche introuvable.');return;}
+
+  const n1=String(t.wbs||'').split('-')[0];
+  const currentN2=String(t.wbs||'').split('-')[1]||'';
+  const oldWbs=String(t.wbs||'').replace(/^-/,'');
+  const oldLabel=t.label||'';
+
+  // Formulaire inline dans task-list
+  const el=document.querySelector(`[data-task-idx="${idx}"]`);
+  if(!el){renderTaskList();return;}
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:5px;width:100%">
+      <span style="font-size:10px;color:var(--muted);white-space:nowrap">${t.proj}-${n1}-</span>
+      <input id="ei-n2" type="number" min="1" value="${currentN2||''}" placeholder="N2" style="width:48px;padding:3px 5px;font-size:12px;border:1px solid var(--accent);border-radius:5px;background:var(--surface);color:var(--ink);text-align:center" onkeydown="if(event.key==='Enter')saveTaskEdit(${idx},'${t.proj}','${n1}','${oldWbs}','${oldLabel.replace(/'/g,'\\\'')}')" autofocus>
+      <input id="ei-lbl" type="text" value="${oldLabel}" placeholder="Libellé" style="flex:1;padding:3px 7px;font-size:12px;border:1px solid var(--accent);border-radius:5px;background:var(--surface);color:var(--ink)" onkeydown="if(event.key==='Enter')saveTaskEdit(${idx},'${t.proj}','${n1}','${oldWbs}','${oldLabel.replace(/'/g,'\\\'')}')" >
+      <button onclick="saveTaskEdit(${idx},'${t.proj}','${n1}','${oldWbs}','${oldLabel.replace(/'/g,'\\\'')}');event.stopPropagation()" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:600">✓</button>
+      <button onclick="renderTaskList();event.stopPropagation()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:4px 8px;cursor:pointer;font-size:12px;color:var(--muted)">✕</button>
+    </div>`;
+  document.getElementById('ei-n2').focus();
 }
-function editTask(key){
-  const {proj,wbs,num,label}=_parseTaskKey(key);
-  const newLabel=prompt(`Renommer la tâche "${label}" :`, label);
-  if(!newLabel||newLabel.trim()===label)return;
-  const idx=tasks.findIndex(t=>t.proj===proj&&t.wbs===wbs&&String(t.num)===String(num)&&t.label===label);
-  if(idx<0)return;
-  // Mettre à jour aussi les entrées existantes qui référencent cette tâche
-  entries=entries.map(e=>e.project===proj&&e.wbs===wbs&&e.task===label?{...e,task:newLabel.trim()}:e);
-  tasks[idx]={...tasks[idx],label:newLabel.trim()};
-  WS('mpe4-tasks',tasks);WS('mpe4-entries',entries);
-  renderProjList();
+
+function saveTaskEdit(idx,proj,n1,oldWbs,oldLabel){
+  const n2=document.getElementById('ei-n2')?.value.trim();
+  const label=document.getElementById('ei-lbl')?.value.trim();
+  if(!n2||parseInt(n2)<=0){alert('N2 invalide.');return;}
+  if(!label){alert('Libellé obligatoire.');return;}
+  const newWbs=n1+'-'+n2;
+  const currentN2=oldWbs.split('-')[1]||'';
+  if(n2!==currentN2&&tasks.find((x,i)=>i!==idx&&x.proj===proj&&x.wbs===newWbs)){
+    alert(`N2 ${n2} déjà utilisé.`);return;
+  }
+  tasks[idx]={...tasks[idx],wbs:newWbs,label};
+  WS('mpe4-tasks',tasks);
+  let updated=0;
+  const oldLabelLower=oldLabel.toLowerCase();
+  entries=entries.map(e=>{
+    const eWbs=String(e.wbs||'').replace(/^-/,'');
+    const labelMatch=e.task===oldLabel||(e.task||'').toLowerCase()===oldLabelLower;
+    if(e.project===proj&&(eWbs===oldWbs||eWbs===n1)&&labelMatch){
+      updated++;
+      return{...e,wbs:n1,taskNum:n2,task:label};
+    }
+    return e;
+  });
+  if(updated>0){WS('mpe4-entries',entries);_userHasActed=true;}
+  renderTaskList();populateProjectSelects();renderProjList();
+  if(updated>0)renderTodayList();
 }
 function deleteTask(key){
   const {proj,wbs,num,label}=_parseTaskKey(key);
