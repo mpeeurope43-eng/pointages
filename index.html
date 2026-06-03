@@ -3513,14 +3513,51 @@ function renderWbsList(){
 
 function editWbs(code){
   const w=wbsList.find(x=>x.code===code);if(!w)return;
-  const newLabel=prompt(`Renommer le WBS "${code} · ${w.label}" :`, w.label);
-  if(!newLabel||newLabel.trim()===w.label)return;
-  // Mettre à jour le libellé dans wbsList
-  wbsList=wbsList.map(x=>x.code===code?{...x,label:newLabel.trim()}:x);
+  // Pointages liés à ce WBS (tous utilisateurs)
+  const linked=entries.filter(e=>String(e.wbs||'').split('-')[0]===String(code));
+  // Tâches liées
+  const linkedTasks=tasks.filter(t=>String(t.wbs||'').split('-')[0]===String(code));
+
+  const modal=document.getElementById('wbs-edit-modal');
+  document.getElementById('wem-code').textContent=code;
+  document.getElementById('wem-label').value=w.label;
+
+  // Résumé pointages
+  const totalMs=linked.reduce((s,e)=>s+(e.ms||0),0);
+  const totalH=totalMs>0?(totalMs/3600000).toFixed(1)+'h':'—';
+  const sumEl=document.getElementById('wem-summary');
+  if(linked.length>0){
+    sumEl.style.display='block';
+    sumEl.innerHTML=`<span style="font-size:12px;color:var(--blue)">📋 ${linked.length} pointage(s) lié(s) · ${totalH} · ${linkedTasks.length} tâche(s)</span>
+    <div style="font-size:11px;color:var(--muted);margin-top:3px">Le libellé WBS sera mis à jour dans tous les affichages. Les tâches liées restent inchangées.</div>`;
+  } else {
+    sumEl.style.display='block';
+    sumEl.innerHTML=`<span style="font-size:12px;color:var(--muted)">Aucun pointage sur ce WBS pour l'instant.</span>`;
+  }
+
+  modal._code=code;
+  modal._linkedCount=linked.length;
+  modal.style.display='flex';
+  setTimeout(()=>document.getElementById('wem-label').select(),50);
+}
+function wemSave(){
+  const modal=document.getElementById('wbs-edit-modal');
+  const code=modal._code;
+  const newLabel=document.getElementById('wem-label').value.trim();
+  const w=wbsList.find(x=>x.code===code);
+  if(!w||!newLabel)return;
+  if(newLabel===w.label){wemClose();return;}
+  const linkedCount=modal._linkedCount||0;
+  if(linkedCount>0){
+    if(!confirm(`Renommer le WBS "${code} · ${w.label}" en "${newLabel}" ?\n\n✓ ${linkedCount} pointage(s) lié(s) : l'affichage sera mis à jour automatiquement.\n\nConfirmer ?`))return;
+  }
+  wbsList=wbsList.map(x=>x.code===code?{...x,label:newLabel}:x);
   WS('mpe4-wbs',wbsList);
-  renderWbsList();
-  renderProjList();
-  populateProjectSelects();
+  wemClose();
+  renderWbsList();renderProjList();populateProjectSelects();renderTodayList();
+}
+function wemClose(){
+  document.getElementById('wbs-edit-modal').style.display='none';
 }
 function addWbs(){
   const code=document.getElementById('nw-code').value.trim();
@@ -3647,18 +3684,35 @@ function saveTaskEdit(idx,proj,n1,oldWbs,oldLabel){
   }
   tasks[idx]={...tasks[idx],wbs:newWbs,label};
   WS('mpe4-tasks',tasks);
-  let updated=0;
+  // Compter les pointages à mettre à jour
   const oldLabelLower=oldLabel.toLowerCase();
-  entries=entries.map(e=>{
+  const toUpdate=entries.filter(e=>{
     const eWbs=String(e.wbs||'').replace(/^-/,'');
     const labelMatch=e.task===oldLabel||(e.task||'').toLowerCase()===oldLabelLower;
-    if(e.project===proj&&(eWbs===oldWbs||eWbs===n1)&&labelMatch){
-      updated++;
-      return{...e,wbs:n1,taskNum:n2,task:label};
-    }
-    return e;
+    return e.project===proj&&(eWbs===oldWbs||eWbs===n1)&&labelMatch;
   });
-  if(updated>0){WS('mpe4-entries',entries);_userHasActed=true;}
+  let updated=0;
+  if(toUpdate.length>0){
+    const hasChange=(n2!==currentN2)||(label!==oldLabel);
+    if(hasChange){
+      const msg=`${toUpdate.length} pointage(s) lié(s) à cette tâche.\n\n` +
+        (label!==oldLabel?`• Libellé : "${oldLabel}" → "${label}"\n`:'')+
+        (n2!==currentN2?`• N2 : ${currentN2} → ${n2}\n`:'')+
+        `\nMettre à jour ces pointages automatiquement ?`;
+      if(confirm(msg)){
+        entries=entries.map(e=>{
+          const eWbs=String(e.wbs||'').replace(/^-/,'');
+          const labelMatch=e.task===oldLabel||(e.task||'').toLowerCase()===oldLabelLower;
+          if(e.project===proj&&(eWbs===oldWbs||eWbs===n1)&&labelMatch){
+            updated++;
+            return{...e,wbs:n1,taskNum:n2,task:label};
+          }
+          return e;
+        });
+        WS('mpe4-entries',entries);_userHasActed=true;
+      }
+    }
+  }
   renderTaskList();populateProjectSelects();renderProjList();
   if(updated>0)renderTodayList();
 }
@@ -4199,6 +4253,29 @@ window._mpeReload=function(){
       <div style="flex:1"></div>
       <button onclick="closeEntryModal()" style="padding:9px 16px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Annuler</button>
       <button onclick="emSave()" style="padding:9px 16px;border:none;border-radius:7px;background:var(--ink);color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✓ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal édition WBS -->
+<div id="wbs-edit-modal" onclick="if(event.target===this)wemClose()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:14px;padding:24px;max-width:400px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--ink)">Modifier le WBS <span id="wem-code" style="font-family:'IBM Plex Mono',monospace;color:var(--accent)"></span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Renommage du libellé</div>
+      </div>
+      <button onclick="wemClose()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Libellé WBS</label>
+      <input class="field" type="text" id="wem-label" placeholder="Libellé du WBS…"
+        onkeydown="if(event.key==='Enter')wemSave();if(event.key==='Escape')wemClose()">
+    </div>
+    <div id="wem-summary" style="display:none;background:var(--blue-bg);border:1px solid var(--blue);border-radius:8px;padding:10px 12px;margin-bottom:4px"></div>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button onclick="wemClose()" style="padding:9px 16px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Annuler</button>
+      <button onclick="wemSave()" style="flex:1;padding:9px 16px;border:none;border-radius:7px;background:var(--ink);color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">✓ Enregistrer</button>
     </div>
   </div>
 </div>
