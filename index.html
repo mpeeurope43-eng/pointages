@@ -2056,6 +2056,8 @@ document.addEventListener('click',ev=>{
   if(editBtn){ev.stopPropagation();openEntryModal(editBtn.dataset.editId);return;}
   const d=ev.target.closest('.del-btn');if(d){const id=parseInt(d.dataset.id);if(!isNaN(id))deleteEntry(id);}
   const cd=ev.target.closest('.cfg-del');if(cd)handleCfgDel(cd);
+  const ce=ev.target.closest('.cfg-edit');if(ce&&ce.dataset.editWbs!==undefined)editWbs(ce.dataset.editWbs);
+  if(ce&&ce.dataset.editTask!==undefined)editTask(parseInt(ce.dataset.editTask));
   const pb=ev.target.closest('.person-btn[data-userid]');if(pb)selectUserFromModal(pb.dataset.userid);
 });
 function selectUserFromModal(id){
@@ -3507,7 +3509,7 @@ function renderWbsList(){
   el.innerHTML=wbsList.map(w=>`<div class="cfg-item">
     <span class="cfg-code">${w.code}</span>
     <span class="cfg-label">${w.label}</span>
-    <button onclick="editWbs('${w.code}')" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:11px;padding:2px 5px" title="Renommer">✏️</button>
+    <button class="cfg-edit" data-edit-wbs="${w.code}" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:11px;padding:2px 5px" title="Renommer">✏️</button>
     <button class="cfg-del" data-del-type="wbs" data-del-code="${w.code}">✕</button>
   </div>`).join('');
 }
@@ -3591,7 +3593,7 @@ function renderTaskList(){
     return `<div class="cfg-item" data-task-idx="${tIdx}" style="${hasN2?'':'border-color:var(--red);background:rgba(239,68,68,.05)'}">
       <span class="cfg-code" style="font-size:10px">${t.proj}-${wbsClean}${!hasN2?' <span style="color:var(--red)">⚠N2!</span>':''}</span>
       <span class="cfg-label">${lbl}</span>
-      <button onclick="editTask(${tIdx})" style="border:none;background:none;cursor:pointer;color:var(--muted);padding:2px 5px;font-size:12px" title="Modifier">✏️</button>
+      <button class="cfg-edit" data-edit-task="${tIdx}" style="border:none;background:none;cursor:pointer;color:var(--muted);padding:2px 5px;font-size:12px" title="Modifier">✏️</button>
       <button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button>
     </div>`;
   }).join('');
