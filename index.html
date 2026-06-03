@@ -2069,10 +2069,10 @@ function entryHTML(e){
   const w=wbsList.find(x=>x.code===e.wbs);
   const timeStr=e.mode==='rapide'?'Saisie rapide':`${e.start}→${e.end}`;
   return `<div class="entry">
-    <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${e.project}-${e.wbs}${e.taskNum?'-'+e.taskNum:''}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
+    <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
     <div class="entry-body">
       <div class="entry-proj">${p?p.label:e.project}</div>
-      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${e.project}-${e.wbs}${e.taskNum?'-'+e.taskNum:''}  </span>${w?w.label:e.wbs}${e.task?' · '+e.task:''}</div>
+      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}  </span>${w?w.label:e.wbs}${e.task?' · '+e.task:''}</div>
       ${e.desc?`<div class="entry-desc">${e.desc}</div>`:''}
       <div class="entry-meta">👤 ${e.user} &nbsp;·&nbsp; ${timeStr}</div>
     </div>
@@ -3539,7 +3539,71 @@ function renderTaskList(){
       :'<div style="font-size:12px;color:var(--muted);padding:10px;text-align:center">Sélectionnez un projet pour voir ses tâches</div>';
     return;
   }
-  el.innerHTML=filtered.map(t=>`<div class="cfg-item"><span class="cfg-code" style="font-size:10px">${t.proj}-${String(t.wbs).replace(/^-/,"")}</span><span class="cfg-label">${(()=>{const n1=String(t.wbs).replace(/^-/,'').split('-')[0];const w=wbsList.find(x=>x.code===n1);return w?w.label+' / ':''})()}${t.label}</span><button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button></div>`).join('');
+  el.innerHTML=filtered.map(t=>{
+    const wbsClean=String(t.wbs).replace(/^-/,'');
+    const parts=wbsClean.split('-');
+    const n1=parts[0]; const n2=parts[1];
+    const hasN2=n2&&n2!=='0';
+    const w=wbsList.find(x=>x.code===n1);
+    const lbl=(w?w.label+' / ':'')+t.label;
+    const tIdx=tasks.indexOf(t);
+    return `<div class="cfg-item" style="${hasN2?'':'border-color:var(--red);background:rgba(239,68,68,.05)'}">
+      <span class="cfg-code" style="font-size:10px">${t.proj}-${wbsClean}${!hasN2?' <span style="color:var(--red)">⚠N2!</span>':''}</span>
+      <span class="cfg-label">${lbl}</span>
+      <button onclick="editTask(${tIdx})" style="border:none;background:none;cursor:pointer;color:var(--muted);padding:2px 5px;font-size:12px" title="Modifier">✏️</button>
+      <button class="cfg-del" data-del-type="task" data-del-proj="${t.proj}" data-del-wbs="${t.wbs}" data-del-label="${t.label}">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function editTask(idx){
+  const t=tasks[idx];if(!t)return;
+  const n1=String(t.wbs).split('-')[0];
+  const currentN2=String(t.wbs).split('-')[1]||'';
+
+  const n2=prompt(`N2 pour "${t.proj}-${t.wbs} / ${t.label}"\n\nActuel : ${currentN2||'(aucun)'}\nNouveau N2 (laisser vide = garder) :`, currentN2||'');
+  if(n2===null)return;
+  const n2clean=n2.trim();
+  if(n2clean && parseInt(n2clean)<=0){alert('N2 invalide.');return;}
+  const finalN2 = n2clean || currentN2;
+  if(!finalN2){alert('N2 obligatoire.');return;}
+
+  const newLabel=prompt(`Libellé pour "${t.proj}-${t.wbs}"\n\nActuel : ${t.label}\nNouveau libellé (laisser vide = garder) :`, t.label);
+  if(newLabel===null)return;
+  const finalLabel=newLabel.trim()||t.label;
+
+  const newWbs=n1+'-'+finalN2;
+  // Bloquer doublon N2 si changé
+  if(finalN2!==currentN2 && tasks.find((x,i)=>i!==idx&&x.proj===t.proj&&x.wbs===newWbs)){
+    alert('Ce N2 est déjà utilisé. Choisissez un autre.');return;
+  }
+  if(finalN2===currentN2 && finalLabel===t.label){return;} // rien changé
+
+  const oldWbsClean=String(t.wbs).replace(/^-/,'');
+  const oldLabel=t.label;
+  tasks[idx]={...t, wbs:newWbs, label:finalLabel};
+  WS('mpe4-tasks',tasks);
+
+  // Mettre à jour les pointages : wbs ET libellé de tâche
+  let updated=0;
+  entries=entries.map(e=>{
+    const eWbs=String(e.wbs||'').replace(/^-/,'');
+    const matchWbs = eWbs===oldWbsClean || eWbs===n1; // N1-N2 ou N1 seul
+    if(e.project===t.proj && matchWbs && e.task===oldLabel){
+      updated++;
+      return {...e, wbs:n1, taskNum:finalN2, task:finalLabel};
+    }
+    return e;
+  });
+  if(updated>0){
+    WS('mpe4-entries',entries);
+    _userHasActed=true;
+  }
+
+  renderTaskList();
+  populateProjectSelects();
+  if(updated>0) renderTodayList();
+  alert(`✓ Tâche mise à jour — ${updated} pointage(s) corrigé(s).`);
 }
 // Suggère le prochain N° libre pour proj+wbs
 function ntAutoNum(){
@@ -3570,29 +3634,22 @@ function addTask(){
   const proj=document.getElementById('nt-proj').value;
   const n1=document.getElementById('nt-wbs').value;
   const n2El=document.getElementById('nt-n2');
-  const n2=n2El?n2El.value.trim():'';
+  const n2Raw=n2El?n2El.value.trim():'';
+  const n2=n2Raw && parseInt(n2Raw) > 0 ? n2Raw : ''; // ignorer 0 ou vide
   const wbs=n2?n1+'-'+n2:n1;
-  const num=''; // numéro non utilisé
+  const num='';
   const label=document.getElementById('nt-label').value.trim();
   if(!proj||!n1||!label){alert('Projet, WBS et libellé requis.');return;}
-
-  // Bloquer si numéro déjà pris sur ce proj+wbs
-  if(num){
-    const conflict=tasks.find(t=>t.proj===proj&&t.wbs===wbs&&String(t.num)===String(num));
-    if(conflict){
-      const code=`${proj}-${wbs}-${num}`;
-      alert(`⛔ Le numéro ${code} est déjà pris par "${conflict.label}".\nChoisissez un autre numéro.`);
-      // Proposer le suivant automatiquement
-      const existing=tasks.filter(t=>t.proj===proj&&t.wbs===wbs).map(t=>parseInt(t.num)||0);
-      document.getElementById('nt-num').value=Math.max(...existing)+1;
-      return;
-    }
+  if(!n2||parseInt(n2)<=0){alert('Le numéro N2 est obligatoire et doit être > 0.');return;}
+  if(tasks.find(t=>t.proj===proj&&t.wbs===wbs)){
+    alert(`Ce N2 (${wbs}) est déjà utilisé pour ce projet. Choisissez un autre numéro.`);return;
   }
-
+  if(tasks.find(t=>t.proj===proj&&t.wbs===wbs&&t.label===label)){
+    alert('Cette tâche existe déjà.');return;
+  }
   tasks.push({proj,wbs,num:num||'',label});
   WS('mpe4-tasks',tasks);
   document.getElementById('nt-label').value='';
-  // Auto-incrémenter le N° pour la prochaine saisie
   ntAutoNum();
   renderTaskList();
 }
