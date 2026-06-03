@@ -55,6 +55,7 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:'IBM
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px}
 .card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:14px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid2 > *{min-width:0}
 @media(max-width:600px){.grid2{grid-template-columns:1fr}}
 
 .field-group{margin-bottom:10px}
@@ -593,7 +594,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
           <button class="btn-add" onclick="addWbs()">+</button>
         </div>
         <div id="wbs-lock-msg" style="display:none"></div>
-        <div id="wbs-list" style="max-height:320px;overflow-y:auto"></div>
+        <div id="wbs-list" style="max-height:320px;overflow-y:auto;overflow-x:hidden"></div>
       </div>
       <div class="card">
         <div class="card-title">📋 Tâches N3</div>
