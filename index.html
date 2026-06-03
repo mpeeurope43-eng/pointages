@@ -4042,6 +4042,15 @@ function exportParProjetPDF(){
 window._mpeReload=function(){
   _firebaseReady=true;
   try{
+    // Sauvegarder l'état du chrono AVANT le reload si il tourne
+    const chronoRunning = typeof isRunning !== 'undefined' && isRunning;
+    const savedChronoSelects = chronoRunning ? {
+      proj: document.getElementById('cp-proj')?.value,
+      wbs:  document.getElementById('cp-wbs')?.value,
+      task: document.getElementById('cp-task')?.value,
+      desc: document.getElementById('cp-desc')?.value,
+    } : null;
+
     entries=S('mpe4-entries')||[];
     presences=S('mpe4-presences')||{};
     projects=S('mpe4-projects')||DEF_PROJECTS;
@@ -4051,11 +4060,11 @@ window._mpeReload=function(){
     tasks=S('mpe4-tasks')||DEF_TASKS;
     if(!S('mpe4-users')||!S('mpe4-users').length){W('mpe4-users',DEF_USERS);}
 
-    // Dédupliquer les entrées — clé souple : userId + date + project + wbs + taskNum + ms arrondi à la minute
+    // Dédupliquer les entrées
     const seen=new Set();
     const before=entries.length;
     entries=entries.filter(e=>{
-      const msRound = Math.round((e.ms||0) / 60000); // arrondi à la minute
+      const msRound=Math.round((e.ms||0)/60000);
       const key=`${e.userId}|${e.date}|${e.project}|${String(e.wbs||'')}|${e.taskNum||''}|${msRound}`;
       if(seen.has(key))return false;
       seen.add(key);
@@ -4067,7 +4076,31 @@ window._mpeReload=function(){
       _autoSync();
     }
 
-    populateProjectSelects();populateLockUsers();
+    populateProjectSelects();
+    populateLockUsers();
+
+    // Restaurer les selects du chrono si il tournait
+    if(savedChronoSelects){
+      setTimeout(()=>{
+        const pp=document.getElementById('cp-proj');
+        if(pp&&savedChronoSelects.proj){
+          pp.value=savedChronoSelects.proj;
+          populateWbsSel('c');
+          const pw=document.getElementById('cp-wbs');
+          if(pw&&savedChronoSelects.wbs){
+            pw.value=savedChronoSelects.wbs;
+            const pCode=savedChronoSelects.proj;
+            const wCode=savedChronoSelects.wbs;
+            populateTaskSel('c',pCode,wCode);
+            const pt=document.getElementById('cp-task');
+            if(pt&&savedChronoSelects.task) pt.value=savedChronoSelects.task;
+          }
+        }
+        const pd=document.getElementById('cp-desc');
+        if(pd&&savedChronoSelects.desc) pd.value=savedChronoSelects.desc;
+      },50);
+    }
+
     if(currentUser){renderPresences();renderTodayList();update35hCounter();}
     console.log('🔄 MPE rechargé');
   }catch(e){console.warn('Reload err:',e);}
