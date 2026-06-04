@@ -2075,10 +2075,10 @@ function entryHTML(e){
   const w=wbsList.find(x=>x.code===e.wbs);
   const timeStr=e.mode==='rapide'?'Saisie rapide':`${e.start}→${e.end}`;
   return `<div class="entry">
-    <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
+    <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${(()=>{const n1=String(e.wbs||"").split("-")[0];const n2=e.taskNum&&String(e.taskNum)!=="0"?String(e.taskNum):"";return e.project+"-"+n1+(n2?"-"+n2:"");})()}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
     <div class="entry-body">
       <div class="entry-proj">${p?p.label:e.project}</div>
-      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}</span></div>
+      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${(()=>{const n1=String(e.wbs||"").split("-")[0];const n2=e.taskNum&&String(e.taskNum)!=="0"?String(e.taskNum):"";return e.project+"-"+n1+(n2?"-"+n2:"");})()}</span></div>
       ${(w||e.task)?`<div class="entry-task" style="font-size:11px;color:var(--ink2)">${w?w.label:e.wbs}${e.task?' / '+e.task:''}</div>`:''}
       ${e.desc?`<div class="entry-desc">${e.desc}</div>`:''}
       <div class="entry-meta">👤 ${e.user} &nbsp;·&nbsp; ${timeStr}</div>
@@ -2750,7 +2750,7 @@ function renderCalWeek(ct,mine){
           const timeStr=e.start&&e.end&&e.start!=='—'?`${e.start}→${e.end}`:'';
           return `<div style="background:${col}18;border-left:3px solid ${col};border-radius:0 5px 5px 0;padding:6px 8px;margin-bottom:4px;cursor:pointer" data-edit-id="${e.id}">
             <div style="font-size:11px;font-weight:700;color:${col}">${e.project} <span style="font-family:monospace;font-size:10px">${fmtH(e.ms)}</span></div>
-            ${e.wbs?`<div style="font-size:10px;font-family:monospace;color:var(--ink2);margin-top:1px">${e.project}-${String(e.wbs).replace(/^-/,'')}${e.taskNum?'-'+e.taskNum:''}</div>`:'' }
+            ${e.wbs?`<div style="font-size:10px;font-family:monospace;color:var(--ink2);margin-top:1px">${e.project}-${String(e.wbs||"").split("-")[0]}${e.taskNum&&String(e.taskNum)!=="0"?'-'+e.taskNum:""}</div>`:'' }
             ${e.task?`<div style="font-size:10px;color:var(--ink2)">${e.task}</div>`:''}
             ${e.desc?`<div style="font-size:10px;color:var(--muted);font-style:italic">${e.desc}</div>`:''}
             ${timeStr?`<div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:monospace">${timeStr}</div>`:''}
@@ -3804,8 +3804,9 @@ function emUpdateWbs(selWbs,selTask){
   const projCode=document.getElementById('em-proj').value;
   const wbsSel=document.getElementById('em-wbs');
   wbsSel.innerHTML='<option value="">— WBS —</option>';
-  const wbsWithTasks=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||t.wbs.split('-')[0]===w.code)));
-  const listToShow=wbsWithTasks.length>0?wbsWithTasks:wbsList;
+  const wbsWithTasks=wbsList.filter(w=>tasks.some(t=>t.proj===projCode&&(t.wbs===w.code||String(t.wbs).split('-')[0]===w.code)));
+  // Si pointage existant avec WBS déjà défini, afficher tous les WBS pour ne pas perdre la valeur
+  const listToShow=(wbsWithTasks.length>0&&!selWbs)?wbsWithTasks:wbsList;
   listToShow.forEach(w=>{const o=document.createElement('option');o.value=w.code;o.textContent=w.code+' · '+w.label;wbsSel.appendChild(o);});
   if(selWbs)wbsSel.value=selWbs;
   emUpdateTask(selTask);
