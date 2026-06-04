@@ -2072,13 +2072,18 @@ function fmtDateLong(ds){
 }
 function entryHTML(e){
   const p=projects.find(x=>x.code===e.project);
-  const w=wbsList.find(x=>x.code===e.wbs);
+  const n1=String(e.wbs||'').split('-')[0];
+  const w=wbsList.find(x=>x.code===n1);
+  // Résoudre taskNum depuis la liste des tâches si manquant dans le pointage
+  const tMatch=tasks.find(t=>t.proj===e.project&&String(t.wbs).split('-')[0]===n1&&t.label===e.task);
+  const taskNum=e.taskNum&&String(e.taskNum)!=='0'?String(e.taskNum):(tMatch&&tMatch.wbs?String(tMatch.wbs).split('-')[1]||'':'');
+  const fullCode=e.project+'-'+n1+(taskNum?'-'+taskNum:'');
   const timeStr=e.mode==='rapide'?'Saisie rapide':`${e.start}→${e.end}`;
   return `<div class="entry">
-    <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${(()=>{const n1=String(e.wbs||"").split("-")[0];const n2=e.taskNum&&String(e.taskNum)!=="0"?String(e.taskNum):"";return e.project+"-"+n1+(n2?"-"+n2:"");})()}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
+    <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${fullCode}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
     <div class="entry-body">
       <div class="entry-proj">${p?p.label:e.project}</div>
-      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${(()=>{const n1=String(e.wbs||"").split("-")[0];const n2=e.taskNum&&String(e.taskNum)!=="0"?String(e.taskNum):"";return e.project+"-"+n1+(n2?"-"+n2:"");})()}</span></div>
+      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${fullCode}</span></div>
       ${(w||e.task)?`<div class="entry-task" style="font-size:11px;color:var(--ink2)">${w?w.label:e.wbs}${e.task?' / '+e.task:''}</div>`:''}
       ${e.desc?`<div class="entry-desc">${e.desc}</div>`:''}
       <div class="entry-meta">👤 ${e.user} &nbsp;·&nbsp; ${timeStr}</div>
@@ -2748,9 +2753,13 @@ function renderCalWeek(ct,mine){
       ?dayEntries.map(e=>{
           const col=_projColor(e.project);
           const timeStr=e.start&&e.end&&e.start!=='—'?`${e.start}→${e.end}`:'';
+          const _n1w=String(e.wbs||'').split('-')[0];
+          const _tMw=tasks.find(t=>t.proj===e.project&&String(t.wbs).split('-')[0]===_n1w&&t.label===e.task);
+          const _tnw=e.taskNum&&String(e.taskNum)!=='0'?String(e.taskNum):(_tMw&&_tMw.wbs?String(_tMw.wbs).split('-')[1]||'':'');
+          const _fcw=e.project+'-'+_n1w+(_tnw?'-'+_tnw:'');
           return `<div style="background:${col}18;border-left:3px solid ${col};border-radius:0 5px 5px 0;padding:6px 8px;margin-bottom:4px;cursor:pointer" data-edit-id="${e.id}">
             <div style="font-size:11px;font-weight:700;color:${col}">${e.project} <span style="font-family:monospace;font-size:10px">${fmtH(e.ms)}</span></div>
-            ${e.wbs?`<div style="font-size:10px;font-family:monospace;color:var(--ink2);margin-top:1px">${e.project}-${String(e.wbs||"").split("-")[0]}${e.taskNum&&String(e.taskNum)!=="0"?'-'+e.taskNum:""}</div>`:'' }
+            ${e.wbs?`<div style="font-size:10px;font-family:monospace;color:var(--ink2);margin-top:1px">${_fcw}</div>`:'' }
             ${e.task?`<div style="font-size:10px;color:var(--ink2)">${e.task}</div>`:''}
             ${e.desc?`<div style="font-size:10px;color:var(--muted);font-style:italic">${e.desc}</div>`:''}
             ${timeStr?`<div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:monospace">${timeStr}</div>`:''}
