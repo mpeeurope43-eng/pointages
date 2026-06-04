@@ -2078,7 +2078,8 @@ function entryHTML(e){
     <div class="entry-badges"><span class="eb1">${e.project}</span><span class="eb2">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}</span>${e.task?`<span class="eb3">${e.task}</span>`:''}</div>
     <div class="entry-body">
       <div class="entry-proj">${p?p.label:e.project}</div>
-      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}  </span>${w?w.label:e.wbs}${e.task?' · '+e.task:''}</div>
+      <div class="entry-task"><span style="font-family:monospace;font-size:10px;color:var(--accent2);font-weight:700">${(()=>{const parts=String(e.wbs||"").split("-");const n2=parts[1];return e.project+"-"+parts[0]+(n2&&n2!=="0"?"-"+n2:"")+(e.taskNum&&e.taskNum!=="0"?"-"+e.taskNum:"");})()}</span></div>
+      ${(w||e.task)?`<div class="entry-task" style="font-size:11px;color:var(--ink2)">${w?w.label:e.wbs}${e.task?' / '+e.task:''}</div>`:''}
       ${e.desc?`<div class="entry-desc">${e.desc}</div>`:''}
       <div class="entry-meta">👤 ${e.user} &nbsp;·&nbsp; ${timeStr}</div>
     </div>
@@ -3550,9 +3551,14 @@ function wemSave(){
   const w=wbsList.find(x=>x.code===code);
   if(!w||!newLabel)return;
   if(newLabel===w.label){wemClose();return;}
-  const linkedCount=modal._linkedCount||0;
+  const linked=entries.filter(e=>String(e.wbs||'').split('-')[0]===String(code));
+  const linkedCount=linked.length;
   if(linkedCount>0){
-    if(!confirm(`Renommer le WBS "${code} · ${w.label}" en "${newLabel}" ?\n\n✓ ${linkedCount} pointage(s) lié(s) : l'affichage sera mis à jour automatiquement.\n\nConfirmer ?`))return;
+    if(!confirm(`Renommer le WBS "${code} · ${w.label}" en "${newLabel}" ?
+
+${linkedCount} pointage(s) lié(s) seront mis à jour automatiquement.
+
+Confirmer ?`))return;
   }
   wbsList=wbsList.map(x=>x.code===code?{...x,label:newLabel}:x);
   WS('mpe4-wbs',wbsList);
