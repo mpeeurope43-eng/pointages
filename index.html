@@ -1954,7 +1954,11 @@ function stopTimer(){
   ['cp-proj','cp-task'].forEach(id=>document.getElementById(id).disabled=false);
   localStorage.removeItem('mpe4-chrono-state');
   const _tv=_parseTaskVal(document.getElementById('cp-task').value);
-  saveEntry({project:document.getElementById('cp-proj').value,wbs:_tv.wbs,task:_tv.task,taskNum:getTaskNum(document.getElementById('cp-proj').value,_tv.wbs,_tv.task),desc:document.getElementById('cp-desc').value.trim(),date:todayStr(),start:sessionStartStr,end:nowStr(),ms:Math.max(ms,0),mode:'chrono'});
+  const _proj=document.getElementById('cp-proj').value;
+  const _tn=getTaskNum(_proj,_tv.wbs,_tv.task);
+  if(!_tv.wbs){alert('Aucun WBS (N2) sélectionné — pointage non enregistré.');renderTimerUI();return;}
+  if(!_tn){alert('Tâche sans numéro N2 — vérifiez la configuration.');renderTimerUI();return;}
+  saveEntry({project:_proj,wbs:_tv.wbs,task:_tv.task,taskNum:_tn,desc:document.getElementById('cp-desc').value.trim(),date:todayStr(),start:sessionStartStr,end:nowStr(),ms:Math.max(ms,0),mode:'chrono'});
   timerMs=0;
   document.getElementById('c-timer').textContent='00:00:00';
   document.getElementById('c-timer').className='c-time';
@@ -2003,7 +2007,10 @@ function saveRapide(){
   if(!date){alert('Entrez une date.');return}
   const ms=parseDur(durStr);
   if(!ms){alert('Durée invalide. Exemples: 1h30, 2h, 45min');return}
-  saveEntry({project:proj,wbs,task,desc:document.getElementById('rp-desc').value.trim(),date,start:'—',end:'—',ms,mode:'rapide'});
+  const taskNumR=getTaskNum(proj,wbs,task);
+  if(!wbs){alert('Choisissez un WBS (N2).');return}
+  if(!taskNumR){alert('Tâche sans numéro N2 — vérifiez la configuration.');return}
+  saveEntry({project:proj,wbs,task,taskNum:taskNumR,desc:document.getElementById('rp-desc').value.trim(),date,start:'—',end:'—',ms,mode:'rapide'});
   document.getElementById('rp-dur').value='';document.getElementById('rp-dur-preview').textContent='';document.getElementById('rp-desc').value='';
 }
 
@@ -2019,7 +2026,10 @@ function saveManual(){
   if(!date||!start||!end){alert('Date et heures obligatoires.');return}
   const ms=timeToMs(end)-timeToMs(start);
   if(ms<=0){alert('Heure de fin après heure de début.');return}
-  saveEntry({project:proj,wbs,task,desc:document.getElementById('mp-desc').value.trim(),date,start,end,ms,mode:'detail'});
+  const taskNumM=getTaskNum(proj,wbs,task);
+  if(!wbs){alert('Choisissez un WBS (N2).');return}
+  if(!taskNumM){alert('Tâche sans numéro N2 — vérifiez la configuration.');return}
+  saveEntry({project:proj,wbs,task,taskNum:taskNumM,desc:document.getElementById('mp-desc').value.trim(),date,start,end,ms,mode:'detail'});
   document.getElementById('mp-desc').value='';
   document.getElementById('mp-proj').value='';
   document.getElementById('mp-n2w').style.display='none';
@@ -2029,8 +2039,11 @@ function saveManual(){
 // ════════════════════════ ENTRIES ════════════════════════
 
 function getTaskNum(proj, wbs, taskLabel){
-  const t = tasks.find(x=>x.proj===proj&&x.wbs===wbs&&x.label===taskLabel);
-  return t?.num||'';
+  // wbs peut être "0-1" (format complet) ou "0" (N1 seul)
+  const t = tasks.find(x=>x.proj===proj&&x.label===taskLabel&&(x.wbs===wbs||String(x.wbs).split('-')[0]===String(wbs).split('-')[0]));
+  if(!t) return '';
+  // Le N2 est dans t.wbs.split('-')[1], t.num est souvent vide
+  return t.num||String(t.wbs||'').split('-')[1]||'';
 }
 
 function saveEntry(e){
@@ -3913,7 +3926,10 @@ function qaSave(){
   if(!taskVal){alert('Choisissez une tâche.');return;}
   if(!ms){alert('Durée invalide. Ex: 2h, 1h30, 45min');return;}
   const note=document.getElementById('qa-note').value.trim();
-  saveEntry({project:proj,wbs,task,desc:note,date,start:'—',end:'—',ms,mode:'rapide'});
+  const taskNumQ=getTaskNum(proj,wbs,task);
+  if(!wbs){alert('Choisissez un WBS (N2).');return;}
+  if(!taskNumQ){alert('Tâche sans numéro N2 — vérifiez la configuration.');return;}
+  saveEntry({project:proj,wbs,task,taskNum:taskNumQ,desc:note,date,start:'—',end:'—',ms,mode:'rapide'});
   document.getElementById('quickadd-modal').style.display='none';
   renderCalendar();
 }
