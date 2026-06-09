@@ -2855,8 +2855,8 @@ function genPeriodes(p, gran) {
     while (cur <= fin && safeCount < 104) {
       safeCount++;
       // Algorithme ISO (même que getWHeures)
-      const _j4 = new Date(cur.getFullYear(),0,4);
-      const _ys = new Date(_j4.getTime()-((_j4.getDay()||7)-1)*86400000);
+      const _j4 = new Date(Date.UTC(cur.getFullYear(),0,4));
+      const _ys = new Date(_j4.getTime()-((_j4.getUTCDay()||7)-1)*86400000);
       const isoWeek = Math.round((cur - _ys)/604800000)+1;
       const isoYear = isoWeek < 1 ? cur.getFullYear()-1 : (isoWeek > 52 && cur.getMonth()===11 ? cur.getFullYear()+1 : cur.getFullYear());
       const key = `${isoYear}-W${String(isoWeek).padStart(2,'0')}`;
@@ -3310,8 +3310,8 @@ function renderDepPlanning(p) {
   function s2m(key) {
     if (!key || !key.includes('-W')) return key;
     const [yr,wk] = key.split('-W').map(Number);
-    const j4 = new Date(yr,0,4);
-    const d = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk-1)*7*86400000);
+    const j4 = new Date(Date.UTC(yr,0,4));
+    const d = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk-1)*7*86400000);
     return d.toISOString().slice(0,7);
   }
 
@@ -3332,8 +3332,8 @@ function renderDepPlanning(p) {
       if (key.includes('-W')) {
         // semaine : vérifier si la date tombe dans cette semaine
         const [yr,wk] = key.split('-W').map(Number);
-        const j4 = new Date(yr,0,4);
-        const start = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk-1)*7*86400000);
+        const j4 = new Date(Date.UTC(yr,0,4));
+        const start = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk-1)*7*86400000);
         const end   = new Date(start.getTime()+6*86400000);
         const dd = new Date(d.date);
         return dd >= start && dd <= end;
@@ -3426,8 +3426,8 @@ function renderDepPlanning(p) {
         } else if (d.date) {
           if (key.includes('-W')) {
             const [yr,wk2] = key.split('-W').map(Number);
-            const j4 = new Date(yr,0,4);
-            const start = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk2-1)*7*86400000);
+            const j4 = new Date(Date.UTC(yr,0,4));
+            const start = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk2-1)*7*86400000);
             const end2  = new Date(start.getTime()+6*86400000);
             const dp = d.date.split('-').map(Number);
             const dd = new Date(dp[0], dp[1]-1, dp[2]);
@@ -3460,11 +3460,11 @@ function renderDepPlanning(p) {
         if (!e.date) return false;
         if (key.includes('-W')) {
           const [yr,wk2] = key.split('-W').map(Number);
-          const j4 = new Date(yr,0,4);
-          const start = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk2-1)*7*86400000);
+          const j4 = new Date(Date.UTC(yr,0,4));
+          const start = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk2-1)*7*86400000);
           const end2  = new Date(start.getTime()+6*86400000);
           const dp = e.date.split('-').map(Number);
-          const dd = new Date(dp[0], dp[1]-1, dp[2]);
+          const dd = new Date(Date.UTC(dp[0], dp[1]-1, dp[2]));
           if (dd < start || dd > end2) return false;
         } else {
           if (e.date.slice(0,7) !== key) return false;
@@ -4521,8 +4521,8 @@ function renderGraphiques() {
     if (!d.date) return false;
     if (key.includes('-W')) {
       const [yr,wk] = key.split('-W').map(Number);
-      const j4 = new Date(yr,0,4);
-      const start = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk-1)*7*86400000);
+      const j4 = new Date(Date.UTC(yr,0,4));
+      const start = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk-1)*7*86400000);
       const end   = new Date(start.getTime()+6*86400000);
       const dd    = new Date(d.date);
       return dd >= start && dd <= end;
@@ -5322,8 +5322,8 @@ function openNewDepReelle(key, wbsId) {
   let dateStr = '';
   if (key.includes('-W')) {
     const [yr,wk2] = key.split('-W').map(Number);
-    const j4 = new Date(yr,0,4);
-    const start = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk2-1)*7*86400000);
+    const j4 = new Date(Date.UTC(yr,0,4));
+    const start = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk2-1)*7*86400000);
     // Prendre le lundi de la semaine
     dateStr = start.toISOString().slice(0,10);
   } else {
@@ -5380,8 +5380,8 @@ function openEditDepFromPlanning(key, wbsId) {
     if (!d.date) return false;
     if (key.includes('-W')) {
       const [yr,wk2] = key.split('-W').map(Number);
-      const j4 = new Date(yr,0,4);
-      const start = new Date(j4.getTime()-((j4.getDay()||7)-1)*86400000+(wk2-1)*7*86400000);
+      const j4 = new Date(Date.UTC(yr,0,4));
+      const start = new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk2-1)*7*86400000);
       const end2  = new Date(start.getTime()+6*86400000);
       const dp = d.date.split('-').map(Number);
       const dd = new Date(dp[0], dp[1]-1, dp[2]);
@@ -5777,7 +5777,7 @@ function renderGantt() {
     const dow = pDebut.getDay()||7;
     const cur = new Date(pDebut); cur.setDate(cur.getDate()-(dow-1));
     while (cur <= pFin) {
-      const yr=cur.getFullYear(), j4=new Date(yr,0,4);
+      const yr=cur.getFullYear(), j4=new Date(Date.UTC(yr,0,4));
       const wn=Math.ceil(((cur-j4)/86400000+j4.getDay()+1)/7);
       cols.push({ key:`${yr}-W${String(wn).padStart(2,'0')}`, label:`S${wn}`, year:yr, date:new Date(cur) });
       cur.setDate(cur.getDate()+7);
@@ -5826,7 +5826,7 @@ function renderGantt() {
       return cols.findIndex(c=>c.key===dateStr);
     } else if (ganttGran === 'semaine') {
       const d = new Date(yr, mo-1, dy);
-      const j4=new Date(yr,0,4);
+      const j4=new Date(Date.UTC(yr,0,4));
       const wn=Math.ceil(((d-j4)/86400000+j4.getDay()+1)/7);
       return cols.findIndex(c=>c.key===`${yr}-W${String(wn).padStart(2,'0')}`);
     }
