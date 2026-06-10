@@ -3858,7 +3858,14 @@ function emUpdateWbs(selWbs,selTask){
   // Si pointage existant avec WBS déjà défini, afficher tous les WBS pour ne pas perdre la valeur
   const listToShow=(wbsWithTasks.length>0&&!selWbs)?wbsWithTasks:wbsList;
   listToShow.forEach(w=>{const o=document.createElement('option');o.value=w.code;o.textContent=w.code+' · '+w.label;wbsSel.appendChild(o);});
-  if(selWbs)wbsSel.value=selWbs;
+  if(selWbs){
+    // Chercher l'option qui correspond exactement ou au N1
+    const n1=String(selWbs).split('-')[0];
+    const matchExact=[...wbsSel.options].find(o=>o.value===selWbs);
+    const matchN1=[...wbsSel.options].find(o=>o.value===n1);
+    if(matchExact) wbsSel.value=selWbs;
+    else if(matchN1) wbsSel.value=n1;
+  }
   emUpdateTask(selTask);
 }
 function emUpdateTask(selTask){
