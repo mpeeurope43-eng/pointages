@@ -285,7 +285,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       {id:'u2',name:'Damien Cuoq',type:'admin'},
       {id:'u3',name:'Evan Jarousse',type:'horaire'},
       {id:'u4',name:'Damien Charreyre',type:'horaire'},
-      {id:'u5',name:'Aline Cavezzan',type:'horaire'},
+      {id:'u1778161291503',name:'Aline Cavezzan',type:'horaire'},
     ];
     // Essayer de charger depuis localStorage si disponible
     let usersToShow = DEF_USERS_LOCK;
@@ -943,34 +943,33 @@ if(!_IS_LOCAL){
             const newEntries  = JSON.parse(localStorage.getItem('mpe4-entries')   ||'[]');
             const newProjects = JSON.parse(localStorage.getItem('mpe4-projects')  ||'[]');
             const newUsers    = JSON.parse(localStorage.getItem('mpe4-users')     ||'[]');
+            const newWbs      = JSON.parse(localStorage.getItem('mpe4-wbs')       ||'[]');
+            const newTasks    = JSON.parse(localStorage.getItem('mpe4-tasks')     ||'[]');
 
-            // GARDE-FOU : bloquer uniquement au démarrage si local est vide
-            // (protège contre le vidage accidentel au chargement avant Firebase)
-            // Les actions utilisateur explicites passent toujours
-            if(!_userHasActed){
-              if(!newEntries.length && !newProjects.length && !newUsers.length){
-                console.warn('⛔ Sauvegarde annulée — données vides au démarrage');
-                return;
+            // GARDE-FOU RENFORCÉ : toujours vérifier Firebase avant d'écraser avec des données vides
+            // Une collection vide en local ne doit JAMAIS écraser Firebase si Firebase a des données
+            try {
+              const snap = await DATA_REF.get();
+              if(snap.exists){
+                const fb = snap.data();
+                const fbEntries  = (fb.entries  ||[]).length;
+                const fbProjects = (fb.projects ||[]).length;
+                const fbWbs      = (fb.wbs      ||[]).length;
+                const fbTasks    = (fb.tasks    ||[]).length;
+                if(fbEntries  > 0  && newEntries.length  === 0){ console.warn('⛔ Sauvegarde annulée — entries vides, Firebase en a', fbEntries);  return; }
+                if(fbProjects > 0  && newProjects.length === 0){ console.warn('⛔ Sauvegarde annulée — projects vides, Firebase en a', fbProjects); return; }
+                if(fbWbs      > 0  && newWbs.length      === 0){ console.warn('⛔ Sauvegarde annulée — wbs vides, Firebase en a', fbWbs);           return; }
+                if(fbTasks    > 0  && newTasks.length    === 0){ console.warn('⛔ Sauvegarde annulée — tasks vides, Firebase en a', fbTasks);        return; }
               }
-              try {
-                const snap = await DATA_REF.get();
-                if(snap.exists){
-                  const fbEntries = (snap.data().entries||[]).length;
-                  if(fbEntries > 10 && newEntries.length === 0){
-                    console.warn('⛔ Sauvegarde annulée — entries vides au démarrage, Firebase a', fbEntries, 'entrées');
-                    return;
-                  }
-                }
-              } catch(e){}
-            }
+            } catch(e){ console.warn('⚠️ Garde-fou Firebase check failed:', e.message); }
 
             const data={
               entries:   newEntries,
               presences: JSON.parse(localStorage.getItem('mpe4-presences') ||'{}'),
               projects:  newProjects,
               users:     newUsers.length ? newUsers : DEF_USERS,
-              wbs:       JSON.parse(localStorage.getItem('mpe4-wbs')       ||'[]'),
-              tasks:     JSON.parse(localStorage.getItem('mpe4-tasks')     ||'[]'),
+              wbs:       newWbs,
+              tasks:     newTasks,
               updatedAt: new Date().toISOString()
             };
             await DATA_REF.set(data);
@@ -990,6 +989,37 @@ if(!_IS_LOCAL){
             if(d.tasks)               localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
           }
           if(window._mpeReload) window._mpeReload();
+          // Backup automatique : 1 fois par jour, premier utilisateur global
+          const today = new Date().toISOString().slice(0,10);
+          if(snap.exists){
+            const d2 = snap.data();
+            const lastBackupFb = d2._lastBackup || '';
+            if(lastBackupFb !== today && (d2.entries||[]).length > 0){
+              // Marquer dans Firebase avant de télécharger (évite les doublons)
+              DATA_REF.update({_lastBackup: today}).then(()=>{
+                setTimeout(()=>{
+                  try{
+                    const backup = {
+                      _version:1, _date:new Date().toISOString(),
+                      _app:'MPE Pointages - Backup automatique',
+                      entries:   d2.entries   ||[],
+                      projects:  d2.projects  ||[],
+                      users:     d2.users     ||[],
+                      presences: d2.presences ||{},
+                      wbs:       d2.wbs       ||[],
+                      tasks:     d2.tasks     ||[],
+                    };
+                    const blob = new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'MPE-Pointages-backup-'+today+'.json';
+                    a.click();
+                    console.log('✅ Backup automatique téléchargé —', today);
+                  }catch(e){ console.warn('⚠️ Backup auto échoué:', e.message); }
+                }, 3000);
+              }).catch(()=>{});
+            }
+          }
         }).catch(e=>{console.warn('⚠️ Firebase load:',e.message);if(window._mpeReload)window._mpeReload();});
 
         DATA_REF.onSnapshot(snap=>{
@@ -1113,7 +1143,8 @@ const DEF_USERS=[
   {id:'u2',name:'Damien Cuoq',type:'admin',rate:120,pwd:'damiencuoq'},
   {id:'u3',name:'Evan Jarousse',type:'horaire',rate:100,pwd:'evanjarousse'},
   {id:'u4',name:'Damien Charreyre',type:'horaire',rate:100,pwd:'damiencharreyre'},
-  {id:'u5',name:'Aline Cavezzan',type:'horaire',rate:100,pwd:'alinecavezzan'},
+  {id:'u1778161291503',name:'Aline Cavezzan',type:'horaire',rate:100,pwd:'alinecavezzan',hSemaine:38},
+  {id:'u1781074798840',name:'Julien Reynier',type:'presta',rate:120,pwd:'julienreynier',active:true},
 ];
 const DEF_WBS=[
   {code:'0',label:'CHIFFRAGE'},
