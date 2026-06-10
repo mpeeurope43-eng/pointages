@@ -989,37 +989,7 @@ if(!_IS_LOCAL){
             if(d.tasks)               localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
           }
           if(window._mpeReload) window._mpeReload();
-          // Backup automatique : 1 fois par jour, premier utilisateur global
-          const today = new Date().toISOString().slice(0,10);
-          if(snap.exists){
-            const d2 = snap.data();
-            const lastBackupFb = d2._lastBackup || '';
-            if(lastBackupFb !== today && (d2.entries||[]).length > 0){
-              // Marquer dans Firebase avant de télécharger (évite les doublons)
-              DATA_REF.update({_lastBackup: today}).then(()=>{
-                setTimeout(()=>{
-                  try{
-                    const backup = {
-                      _version:1, _date:new Date().toISOString(),
-                      _app:'MPE Pointages - Backup automatique',
-                      entries:   d2.entries   ||[],
-                      projects:  d2.projects  ||[],
-                      users:     d2.users     ||[],
-                      presences: d2.presences ||{},
-                      wbs:       d2.wbs       ||[],
-                      tasks:     d2.tasks     ||[],
-                    };
-                    const blob = new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = 'MPE-Pointages-backup-'+today+'.json';
-                    a.click();
-                    console.log('✅ Backup automatique téléchargé —', today);
-                  }catch(e){ console.warn('⚠️ Backup auto échoué:', e.message); }
-                }, 3000);
-              }).catch(()=>{});
-            }
-          }
+          // Backup automatique géré dans _doSwitchUser
         }).catch(e=>{console.warn('⚠️ Firebase load:',e.message);if(window._mpeReload)window._mpeReload();});
 
         DATA_REF.onSnapshot(snap=>{
@@ -1095,6 +1065,33 @@ function _doSwitchUser(uid){
   const mpd=document.getElementById('mp-date');if(mpd)mpd.value=todayStr();
   const rpd=document.getElementById('rp-date');if(rpd)rpd.value=todayStr();
   populateProjectSelects();renderUserUI();renderPresences();renderTodayList();update35hCounter();
+  // Backup automatique : admin uniquement, 1 fois par jour
+  if(u.type==='admin' && typeof DATA_REF !== 'undefined' && DATA_REF){
+    const _today=new Date().toISOString().slice(0,10);
+    const _now=new Date();
+    const _hhmm=String(_now.getHours()).padStart(2,'0')+'h'+String(_now.getMinutes()).padStart(2,'0');
+    DATA_REF.get().then(snap=>{
+      if(!snap.exists)return;
+      const d2=snap.data();
+      if((d2._lastBackup||'')===_today)return;
+      if(!(d2.entries||[]).length)return;
+      DATA_REF.update({_lastBackup:_today}).then(()=>{
+        setTimeout(()=>{
+          try{
+            const backup={_version:1,_date:new Date().toISOString(),_app:'MPE Pointages - Backup automatique',
+              entries:d2.entries||[],projects:d2.projects||[],users:d2.users||[],
+              presences:d2.presences||{},wbs:d2.wbs||[],tasks:d2.tasks||[]};
+            const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+            const a=document.createElement('a');
+            a.href=URL.createObjectURL(blob);
+            a.download='MPE-Pointages-backup-'+_today+'_'+_hhmm+'.json';
+            a.click();
+            console.log('✅ Backup automatique admin —',_today,_hhmm);
+          }catch(e){console.warn('⚠️ Backup auto échoué:',e.message);}
+        },2000);
+      }).catch(()=>{});
+    }).catch(()=>{});
+  }
   const sel=document.getElementById('main-user-sel');if(sel)sel.value=uid;
 }
 
