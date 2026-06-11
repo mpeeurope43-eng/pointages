@@ -844,7 +844,8 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     </div>
     <div class="card" style="border-color:var(--green)">
       <div class="card-title">💾 Sauvegarde & Restauration</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Exportez régulièrement vos données en JSON comme filet de sécurité.</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Exportez régulièrement vos données en JSON comme filet de sécurité.</div>
+      <div id="backup-last-date" style="font-size:11px;color:var(--muted);margin-bottom:10px"></div>
       <div id="backup-check-result" style="display:none;margin-bottom:10px;padding:10px;border-radius:8px;font-size:12px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" onclick="checkAndExportBackup()">🔍 Vérifier & Exporter sauvegarde</button>
@@ -1087,6 +1088,8 @@ function _doSwitchUser(uid){
             a.download='MPE-Pointages-backup-'+_today+'_'+_hhmm+'.json';
             a.click();
             console.log('✅ Backup automatique admin —',_today,_hhmm);
+            const bld2=document.getElementById('backup-last-date');
+            if(bld2) bld2.innerHTML='🕐 Dernier backup automatique : <strong>'+_today+' à '+_hhmm+'</strong>';
           }catch(e){console.warn('⚠️ Backup auto échoué:',e.message);}
         },2000);
       }).catch(()=>{});
@@ -1367,6 +1370,17 @@ function showPage(name,btn){
   
   if(name==='projets'){_projFilter='';setProjTab('liste',document.querySelector('#proj-tabs .chip'));}
   if(name==='export'){renderExportAdmin();populateExportProjSel();}
+  if(name==='admin'){
+    // Afficher date dernier backup
+    const bld=document.getElementById('backup-last-date');
+    if(bld){
+      DATA_REF.get().then(snap=>{
+        if(!snap.exists)return;
+        const lb=snap.data()._lastBackup||'';
+        bld.innerHTML=lb?'🕐 Dernier backup automatique : <strong>'+lb+'</strong>':'⚠️ Aucun backup automatique enregistré';
+      }).catch(()=>{});
+    }
+  }
 }
 
 // ════════════════════════ USER UI ════════════════════════
