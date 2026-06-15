@@ -1865,7 +1865,8 @@ function populateTaskSel(prefix,projCode,wbsCode){
   tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs.split('-')[0]===wbsCode)).forEach(t=>{
     const o=document.createElement('option');
     const wbsReal=String(t.wbs||wbsCode).replace(/^-/,'');
-    o.value=wbsReal+'|'+t.label;  // format wbs|label pour _parseTaskVal
+    const wbsN1=wbsReal.split('-')[0]; // stocker uniquement le N1
+    o.value=wbsN1+'|'+t.label;  // format wbs|label pour _parseTaskVal
     const fullCode=projCode+'-'+wbsReal+(t.num?'-'+t.num:'');
     o.textContent=fullCode+' · '+t.label;
     sel.appendChild(o);
@@ -3256,7 +3257,7 @@ function renderSuivi(){
     if(t.num) taskToN2[`${t.wbs}|${t.label}`]=String(t.num);
   });
   const resolveKey=e=>{
-    const n1=String(e.wbs||'').replace(/^-/,'').trim();
+    const n1=String(e.wbs||'').replace(/^-/,'').split('-')[0].trim();
     const n2=e.taskNum?String(e.taskNum).trim():'';
     if(n2) return `${n1}-${n2}`;
     // Chercher le N2 depuis la config tâches
