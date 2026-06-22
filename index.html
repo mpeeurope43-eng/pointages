@@ -990,24 +990,6 @@ if(!_IS_LOCAL){
             if(d.tasks)               localStorage.setItem('mpe4-tasks',     JSON.stringify(d.tasks));
           }
           if(window._mpeReload) window._mpeReload();
-          // Rafraîchir l'écran de login avec les vrais users Firebase
-          if(!currentUser && d.users && d.users.length){
-            const TC={cadre:'#1a4f8a',horaire:'#1a6b3a',admin:'#c94f0c',alternant:'#7c3aed',presta:'#0e7490'};
-            const TL={cadre:'Cadre IC',horaire:'Horaire ETAM',admin:'Admin',alternant:'Alternant',presta:'Prestataire'};
-            const initials=n=>n.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
-            const cards=document.getElementById('lock-user-cards');
-            if(cards){
-              const usersToShow=d.users.filter(u=>u.active!==false);
-              cards.innerHTML=usersToShow.map(u=>`<div onclick="lockSelectUser('${u.id}')" data-uid="${u.id}"
-                style="width:128px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;cursor:pointer;transition:all .2s;user-select:none"
-                onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.borderColor='rgba(201,79,12,.4)';this.style.transform='translateY(-2px)'"
-                onmouseout="if('${u.id}'!==window._lockSelectedUid){this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.08)';this.style.transform='none'}">
-                <div style="width:50px;height:50px;border-radius:50%;background:${TC[u.type]||'#555'};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;font-family:'IBM Plex Mono',monospace;box-shadow:0 0 20px ${TC[u.type]||'#555'}55">${initials(u.name)}</div>
-                <div style="text-align:center"><div style="font-size:12px;font-weight:700;color:#fff">${u.name.split(' ')[0]}</div><div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px">${u.name.split(' ').slice(1).join(' ')}</div></div>
-                <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:${TC[u.type]||'#9a9590'};background:${TC[u.type]||'#555'}22;border:1px solid ${TC[u.type]||'#555'}44;border-radius:10px;padding:2px 8px">${TL[u.type]||u.type}</div>
-              </div>`).join('');
-            }
-          }
           // Backup automatique géré dans _doSwitchUser
         }).catch(e=>{console.warn('⚠️ Firebase load:',e.message);if(window._mpeReload)window._mpeReload();});
 
@@ -3925,10 +3907,15 @@ function emSave(){
   const ms=parseDur(document.getElementById('em-dur').value);
   if(!ms){alert('Durée invalide.');return;}
   const idx=entries.findIndex(e=>e.id===_editEntryId);if(idx<0)return;
+  const emProj=document.getElementById('em-proj').value;
+  const emWbs=document.getElementById('em-wbs').value;
+  const emTask=document.getElementById('em-task').value;
+  const emTaskNum=getTaskNum(emProj,emWbs,emTask);
   entries[idx]={...entries[idx],
-    project:document.getElementById('em-proj').value,
-    wbs:document.getElementById('em-wbs').value,
-    task:document.getElementById('em-task').value,
+    project:emProj,
+    wbs:emWbs,
+    task:emTask,
+    taskNum:emTaskNum||entries[idx].taskNum||'',
     date:document.getElementById('em-date-input').value,
     desc:document.getElementById('em-note').value,
     ms
