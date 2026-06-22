@@ -623,9 +623,16 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
         <label class="field-label">Période</label>
         <select class="field" id="suivi-period" onchange="renderSuivi()">
           <option value="all">Tout</option>
+          <option value="week">Cette semaine</option>
           <option value="month">Ce mois</option>
           <option value="year">Cette année</option>
+          <option value="pick-week">Semaine précise...</option>
+          <option value="pick-month">Mois précis...</option>
         </select>
+        <div id="suivi-period-pick" style="display:none;margin-top:6px">
+          <input type="week" id="suivi-week-pick" class="field" style="display:none" onchange="renderSuivi()">
+          <input type="month" id="suivi-month-pick" class="field" style="display:none" onchange="renderSuivi()">
+        </div>
       </div>
     </div>
     <div id="suivi-content"></div>
@@ -1865,9 +1872,10 @@ function populateTaskSel(prefix,projCode,wbsCode){
   tasks.filter(t=>t.proj===projCode&&(t.wbs===wbsCode||t.wbs.split('-')[0]===wbsCode)).forEach(t=>{
     const o=document.createElement('option');
     const wbsReal=String(t.wbs||wbsCode).replace(/^-/,'');
-    const wbsN1=wbsReal.split('-')[0]; // stocker uniquement le N1
-    o.value=wbsN1+'|'+t.label;  // format wbs|label pour _parseTaskVal
-    const fullCode=projCode+'-'+wbsReal+(t.num?'-'+t.num:'');
+    const wbsN1=wbsReal.split('-')[0];
+    const wbsN2=t.num||wbsReal.split('-')[1]||'';
+    o.value=wbsN1+'|'+t.label;
+    const fullCode=projCode+'-'+wbsN1+(wbsN2?'-'+wbsN2:'');
     o.textContent=fullCode+' · '+t.label;
     sel.appendChild(o);
   });
@@ -3235,10 +3243,39 @@ function renderSuivi(){
   }
 
   const now=new Date();
+  // Afficher/cacher les inputs semaine/mois précis
+  const pickDiv=document.getElementById('suivi-period-pick');
+  const weekPick=document.getElementById('suivi-week-pick');
+  const monthPick=document.getElementById('suivi-month-pick');
+  if(pickDiv){
+    pickDiv.style.display=(period==='pick-week'||period==='pick-month')?'block':'none';
+    if(weekPick) weekPick.style.display=period==='pick-week'?'block':'none';
+    if(monthPick) monthPick.style.display=period==='pick-month'?'block':'none';
+  }
+
+  // Semaine courante ISO
+  const getISOWeek=d=>{const j4=new Date(Date.UTC(d.getFullYear(),0,4));const start=new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000);return {start,end:new Date(start.getTime()+6*86400000)};};
+  const {start:wStart,end:wEnd}=getISOWeek(now);
+
   const projEntries=entries.filter(e=>{
     if(e.project!==projCode)return false;
-    if(period==='month'){const d=new Date(e.date);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();}
-    if(period==='year'){const d=new Date(e.date);return d.getFullYear()===now.getFullYear();}
+    const d=new Date(e.date);
+    if(period==='month'){return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();}
+    if(period==='year'){return d.getFullYear()===now.getFullYear();}
+    if(period==='week'){const dd=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));return dd>=wStart&&dd<=wEnd;}
+    if(period==='pick-week'&&weekPick&&weekPick.value){
+      // weekPick.value = "2026-W24"
+      const [yr,wk]=weekPick.value.split('-W').map(Number);
+      const j4=new Date(Date.UTC(yr,0,4));
+      const pStart=new Date(j4.getTime()-((j4.getUTCDay()||7)-1)*86400000+(wk-1)*7*86400000);
+      const pEnd=new Date(pStart.getTime()+6*86400000);
+      const dd=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+      return dd>=pStart&&dd<=pEnd;
+    }
+    if(period==='pick-month'&&monthPick&&monthPick.value){
+      const [yr,mo]=monthPick.value.split('-').map(Number);
+      return d.getFullYear()===yr&&d.getMonth()===mo-1;
+    }
     return true;
   });
 
@@ -3372,7 +3409,7 @@ function renderSuivi(){
       const pct=Math.round(ms/totalMs*100);
       return `<div style="margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
-          <span style="color:var(--ink)">${wbsLbl(wbs, data.task)}</span>
+          <span style="color:var(--ink)"><span style="font-family:monospace;font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:1px 5px;margin-right:5px">${projCode}-${wbs}</span>${wbsLbl(wbs, data.task)}</span>
           <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent)">${fmtH2(ms)} <span style="color:var(--muted);font-weight:400">${pct}%</span></span>
         </div>
         <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
