@@ -1789,6 +1789,27 @@ function setHoraireAbs(key,code,ds){if(!presences[key])presences[key]={};presenc
 function setHoraireField(key,field,val,ds){
   if(!presences[key])presences[key]={};
   presences[key][field]=val;
+  // Basculement ½ journée : nettoyer les champs de l'autre mode pour repartir propre
+  if(field==='demi_j'){
+    if(val===true||val==='true'||val===1){
+      // On passe en ½ journée → effacer les champs journée complète
+      presences[key].abs='';
+      presences[key].arrive='';
+      presences[key].depart='';
+      presences[key].pause='';
+      presences[key].dep_note='';
+    } else {
+      // On repasse en journée complète → effacer les champs demi-journée
+      presences[key].matin='';       presences[key].matin_abs='';
+      presences[key].apmidi='';      presences[key].apmidi_abs='';
+      presences[key].matin_arrive=''; presences[key].matin_depart='';
+      presences[key].apmidi_arrive=''; presences[key].apmidi_depart='';
+      presences[key].matin_dep_note=''; presences[key].apmidi_dep_note='';
+    }
+    WS('mpe4-presences',presences);
+    renderPresences();
+    return;
+  }
   WS('mpe4-presences',presences);
   // Rafraîchir l'affichage du total quand on saisit une heure
   if(field.match(/arrive|depart|pause/)) renderPresences();
@@ -2774,8 +2795,7 @@ function renderCalWeek(ct,mine){
   const ds=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const isToday=d=>ds(d)===todayStr();
 
-  const _isoWeek=d=>{const j=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));j.setUTCDate(j.getUTCDate()+4-(j.getUTCDay()||7));const y=new Date(Date.UTC(j.getUTCFullYear(),0,1));return Math.ceil(((j-y)/86400000+1)/7);};
-  const title=`${days[0].getDate()}/${String(days[0].getMonth()+1).padStart(2,'0')} → ${days[4].getDate()}/${String(days[4].getMonth()+1).padStart(2,'0')} ${days[0].getFullYear()} <span style="font-size:12px;font-family:'IBM Plex Mono',monospace;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 7px;color:var(--muted);margin-left:8px;font-weight:600">S${_isoWeek(days[0])}</span>`;
+  const title=`${days[0].getDate()}/${String(days[0].getMonth()+1).padStart(2,'0')} → ${days[4].getDate()}/${String(days[4].getMonth()+1).padStart(2,'0')} ${days[0].getFullYear()}`;
 
   const byDay={};
   days.forEach(d=>{byDay[ds(d)]=mine.filter(e=>e.date===ds(d));});
@@ -2857,7 +2877,7 @@ function renderCalWeek(ct,mine){
   </div>`;
 
   ct.innerHTML=_calNav()+totHtml+`<div style="display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surface)">${cols}</div>`;
-  document.getElementById('cal-nav-title').innerHTML=title;
+  document.getElementById('cal-nav-title').textContent=title;
 }
 
 function renderCalMonth(ct,mine){
