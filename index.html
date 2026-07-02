@@ -692,11 +692,27 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       </select>
     </div>
     <div class="field-group"><label class="field-label">Période</label>
-      <select class="field" id="exp-proj-period">
+      <select class="field" id="exp-proj-period" onchange="updateExpProjPeriod()">
         <option value="all">Toute la période</option>
         <option value="month">Ce mois</option>
         <option value="week">Cette semaine</option>
+        <option value="pick-month">Mois précis...</option>
+        <option value="custom">Période libre...</option>
       </select>
+    </div>
+    <div id="exp-proj-month-wrap" style="display:none" class="field-group">
+      <label class="field-label">Mois</label>
+      <input type="month" class="field" id="exp-proj-month">
+    </div>
+    <div id="exp-proj-custom-wrap" style="display:none">
+      <div class="field-group">
+        <label class="field-label">Du</label>
+        <input type="date" class="field" id="exp-proj-date-start">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Au</label>
+        <input type="date" class="field" id="exp-proj-date-end">
+      </div>
     </div>
     <button class="btn btn-accent btn-full" onclick="exportParProjet()">⬇ Exporter pointage projet (.csv)</button>
     <button class="btn btn-ghost btn-full" style="margin-top:6px" onclick="exportParProjetPDF()">⬇ Exporter pointage projet (.pdf)</button>
@@ -2299,12 +2315,30 @@ function exportPointageAll(){
   if(!data.length){alert('Aucune saisie ce mois.');return}
   doExportPointageCSV(data,`MPE_Pointage_GLOBAL_${monthVal}`);
 }
+function updateExpProjPeriod(){
+  const p=document.getElementById('exp-proj-period').value;
+  document.getElementById('exp-proj-month-wrap').style.display=p==='pick-month'?'block':'none';
+  document.getElementById('exp-proj-custom-wrap').style.display=p==='custom'?'block':'none';
+}
 function exportParProjet(){
   const projCode=document.getElementById('exp-proj-sel').value;
   const period=document.getElementById('exp-proj-period').value;
-  let data=filterEntries(period);
+  let data;
+  if(period==='pick-month'){
+    const mv=document.getElementById('exp-proj-month').value;
+    if(!mv){alert('Choisissez un mois.');return;}
+    const [y,m]=mv.split('-').map(Number);
+    data=entries.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m-1;});
+  } else if(period==='custom'){
+    const ds=document.getElementById('exp-proj-date-start').value;
+    const de=document.getElementById('exp-proj-date-end').value;
+    if(!ds||!de){alert('Choisissez une date de début et de fin.');return;}
+    data=entries.filter(e=>e.date>=ds&&e.date<=de);
+  } else {
+    data=filterEntries(period);
+  }
   if(projCode!=='all')data=data.filter(e=>e.project===projCode);
-  if(!data.length){alert('Aucune saisie pour ce projet/période.');return}
+  if(!data.length){alert('Aucune saisie pour ce projet/période.');return;}
   const fname=projCode==='all'?`MPE_Projets_TOUS_${todayStr()}`:`MPE_Projet_${projCode}_${todayStr()}`;
   doExportPointageCSV(data,fname);
 }
@@ -4251,7 +4285,20 @@ function exportPresencesPDF(all){
 function exportParProjetPDF(){
   const projCode=document.getElementById('exp-proj-sel').value;
   const period=document.getElementById('exp-proj-period').value;
-  let data=filterEntries(period);
+  let data;
+  if(period==='pick-month'){
+    const mv=document.getElementById('exp-proj-month').value;
+    if(!mv){alert('Choisissez un mois.');return;}
+    const [y,m]=mv.split('-').map(Number);
+    data=entries.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m-1;});
+  } else if(period==='custom'){
+    const ds=document.getElementById('exp-proj-date-start').value;
+    const de=document.getElementById('exp-proj-date-end').value;
+    if(!ds||!de){alert('Choisissez une date de début et de fin.');return;}
+    data=entries.filter(e=>e.date>=ds&&e.date<=de);
+  } else {
+    data=filterEntries(period);
+  }
   if(projCode!=='all')data=data.filter(e=>e.project===projCode);
   if(!data.length){alert('Aucune saisie pour ce projet/période.');return;}
   if(!window.jspdf){alert('La lib PDF se charge, réessayez dans 1 seconde.');return;}
