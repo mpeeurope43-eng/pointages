@@ -2375,7 +2375,7 @@ function doExportPresencesXLSX(monthVal,usersToExport,sigDataUrl){
 
 function buildPresenceHTML(u,y,m,moisLabel,dateStr){
   const dim=new Date(y,m,0).getDate();
-  const isCadre=u.type!=='horaire';
+  const isCadre=!['horaire','alternant'].includes(u.type);
   const jFR=(d,m,y)=>{const ds=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;return ds;};
   const presLabel=(val)=>{if(!val)return '';if(val==='present')return 'Présent';const a=ABSENCES.find(x=>x.code===val);return a?a.label:val;};
   const ABS_COLORS={cp:'#dbeafe',rtt:'#cffafe',recup:'#cffafe',maladie:'#fee2e2',dep:'#ede9fe',tt:'#fef9c3',ass:'#f1f5f9',enfant:'#fde8e8',evtfam:'#fdf2f8',ferie:'#fff3e0',present:'#dcfce7'};
@@ -2567,7 +2567,7 @@ function buildPresenceHTML(u,y,m,moisLabel,dateStr){
       </tr>
       <tr>
         <td colspan="11" style="background:#c94f0c;color:white;font-size:9pt;padding:4px 14px">
-          ${({horaire:'Horaire ETAM',cadre:'Cadre IC',admin:'Admin'})[u.type]} &nbsp;|&nbsp; Total heures mois : <strong>${fmtMin(totMois)}</strong> &nbsp;|&nbsp; Généré le ${dateStr}
+          ${({horaire:'Horaire ETAM',cadre:'Cadre IC',admin:'Admin',alternant:'Alternant',presta:'Prestataire'})[u.type]||u.type} &nbsp;|&nbsp; Total heures mois : <strong>${fmtMin(totMois)}</strong> &nbsp;|&nbsp; Généré le ${dateStr}
         </td>
       </tr>
     </table>
@@ -4098,7 +4098,7 @@ function exportPresencesPDF(all){
   usersToExport.forEach(u=>{
     const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     // A4 portrait : 210mm large, marges 8mm → 194mm utiles
-    const isCadre=u.type!=='horaire';
+    const isCadre=!['horaire','alternant'].includes(u.type);
     const dim=new Date(y,m,0).getDate();
 
     // En-tête MPE orange + noir
@@ -4113,7 +4113,7 @@ function exportPresencesPDF(all){
     const totMoisStr=`${String(Math.floor(totMoisMin/60)).padStart(2,'0')}:${String(totMoisMin%60).padStart(2,'0')}`;
     doc.setFillColor(201,79,12);doc.rect(8,22,194,7,'F');
     doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont('helvetica','normal');
-    doc.text(`${({horaire:'Horaire ETAM',cadre:'Cadre IC',admin:'Admin'})[u.type]||u.type}  |  Total heures mois : ${totMoisStr}  |  Généré le ${dateStr}`,10,27);
+    doc.text(`${({horaire:'Horaire ETAM',cadre:'Cadre IC',admin:'Admin',alternant:'Alternant',presta:'Prestataire'})[u.type]||u.type}  |  Total heures mois : ${totMoisStr}  |  Généré le ${dateStr}`,10,27);
 
     const cols=isCadre
       ?['#','Jour','Date','Matin','Après-midi','Remarque']
