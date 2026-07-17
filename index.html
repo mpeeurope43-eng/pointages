@@ -1504,6 +1504,9 @@ function calcWeekPresHours(uid, weekStart){
   const u=users.find(x=>x.id===uid)||{};
   const countAbs=!!u.countAbs;
   const countJF=!!u.countJF;
+  const hSemaine=getUserHSemaine(u)||HEURES_SEMAINE;
+  const dayH=hSemaine/5;        // ex: 38/5 = 7.6h/jour pour Aline (au lieu de 7h fixe)
+  const halfDayH=dayH/2;        // ex: 3.8h pour une demi-journée
   for(let i=0;i<5;i++){
     const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
     const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1519,8 +1522,8 @@ function calcWeekPresHours(uid, weekStart){
       // Jour École (stocké dans slot principal)
       const isEcole=pres.abs==='ecole'||pres.matin==='ecole'||pres.apmidi==='ecole';
       if(isFerie&&countJF){
-        if(pres.demi_j)total+=3.5*3600000;
-        else total+=7*3600000;
+        if(pres.demi_j)total+=halfDayH*3600000;
+        else total+=dayH*3600000;
       }
       // Absence (non JF, non École - école compte via heures réelles)
       else if(countAbs&&!isFerie&&!isEcole){
@@ -1528,10 +1531,10 @@ function calcWeekPresHours(uid, weekStart){
         const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.matin_abs);
         const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.apmidi_abs);
         if(pres.demi_j){
-          if(isAbsMatin)total+=3.5*3600000;
-          if(isAbsApmidi)total+=3.5*3600000;
+          if(isAbsMatin)total+=halfDayH*3600000;
+          if(isAbsApmidi)total+=halfDayH*3600000;
         } else if(isAbsDay){
-          total+=7*3600000;
+          total+=dayH*3600000;
         }
       }
     }
