@@ -257,6 +257,35 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 </head>
 <body>
 
+<!-- ═══ VERROU FIREBASE (compte e-mail/mot de passe) ═══
+     Nouvelle couche de sécurité ajoutée par-dessus l'existant, sans rien modifier au système de
+     profils/mots de passe internes ci-dessous (double sécurité voulue) : tant que la personne n'est
+     pas connectée avec un vrai compte Firebase, cet écran couvre tout (z-index le plus haut de la
+     page) et bloque l'accès — y compris à l'écran de sélection de profil. Une fois connectée, cet
+     écran se cache et l'application continue de fonctionner exactement comme avant. -->
+<div id="fbAuthScreen" style="position:fixed;inset:0;z-index:100000;background:#17150e;display:flex;align-items:center;justify-content:center;padding:20px;font-family:'IBM Plex Sans',sans-serif">
+  <div style="width:100%;max-width:320px;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="width:56px;height:56px;background:linear-gradient(135deg,#c94f0c,#e8621a);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;color:#fff;">MPE</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(255,255,255,.5);letter-spacing:2px;text-transform:uppercase;">Connexion requise</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <input id="fbAuthEmail" type="email" placeholder="E-mail" autocomplete="username"
+        style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-size:14px;padding:12px 14px;font-family:inherit;outline:none;"
+        onkeydown="if(event.key==='Enter') document.getElementById('fbAuthPassword').focus();">
+    </div>
+    <div style="margin-bottom:10px;">
+      <input id="fbAuthPassword" type="password" placeholder="Mot de passe" autocomplete="current-password"
+        style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-size:14px;padding:12px 14px;font-family:inherit;outline:none;"
+        onkeydown="if(event.key==='Enter') window.__fbSubmitLogin();">
+    </div>
+    <div id="fbAuthError" style="color:#ef4444;font-size:11.5px;margin-bottom:10px;min-height:14px;font-family:'IBM Plex Mono',monospace;"></div>
+    <button id="fbAuthSubmitBtn" onclick="window.__fbSubmitLogin()"
+      style="width:100%;background:linear-gradient(135deg,#c94f0c,#e8621a);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;padding:12px;cursor:pointer;font-family:inherit;">Se connecter</button>
+    <div style="text-align:center;font-size:10.5px;color:rgba(255,255,255,.25);margin-top:16px;font-family:'IBM Plex Mono',monospace;">CONFIDENTIEL — MPE EUROPE SAS</div>
+  </div>
+</div>
+
 <!-- ═══ LOCK SCREEN ═══ -->
 <div id="lock-screen" style="position:fixed;inset:0;z-index:500;background:#17150e;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:auto;padding:40px 20px">
   <!-- Grille de fond décorative -->
@@ -961,6 +990,54 @@ if(!_IS_LOCAL){
         window._DATA_REF = DATA_REF; // exposer pour switchUser
         window._firebaseReady = true;
 
+        // ═══ Verrou d'accès (compte e-mail/mot de passe) ═══
+        // Chargé sur ce MÊME projet/app Firebase (indispensable pour que Firestore reconnaisse la
+        // connexion une fois les règles de sécurité verrouillées). N'affecte aucune des variables
+        // ou fonctions ci-dessus/ci-dessous : se contente de montrer/cacher #fbAuthScreen.
+        const _fb3 = document.createElement('script');
+        _fb3.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js';
+        _fb3.onload = () => {
+          try{
+            const auth = firebase.auth();
+            function translateAuthError(err){
+              const code = err && err.code;
+              if(code==='auth/invalid-email') return 'Adresse e-mail invalide.';
+              if(code==='auth/missing-password') return 'Mot de passe requis.';
+              if(code==='auth/invalid-credential' || code==='auth/wrong-password' || code==='auth/user-not-found') return 'E-mail ou mot de passe incorrect.';
+              if(code==='auth/too-many-requests') return 'Trop de tentatives. Réessayez dans quelques minutes.';
+              if(code==='auth/network-request-failed') return 'Problème réseau — vérifiez votre connexion.';
+              return 'Erreur de connexion' + (code ? (' (' + code + ')') : '') + '.';
+            }
+            window.__fbSubmitLogin = function(){
+              const email = document.getElementById('fbAuthEmail').value.trim();
+              const password = document.getElementById('fbAuthPassword').value;
+              const errEl = document.getElementById('fbAuthError');
+              const btn = document.getElementById('fbAuthSubmitBtn');
+              if(!email || !password){ errEl.textContent = 'Merci de renseigner l’e-mail et le mot de passe.'; return; }
+              errEl.textContent = '';
+              btn.style.pointerEvents = 'none';
+              const originalLabel = btn.textContent;
+              btn.textContent = 'Connexion…';
+              auth.signInWithEmailAndPassword(email, password)
+                .catch(err => { errEl.textContent = translateAuthError(err); })
+                .then(() => { btn.style.pointerEvents=''; btn.textContent = originalLabel; });
+            };
+            window.__fbLogout = function(){ auth.signOut(); };
+            auth.onAuthStateChanged(user => {
+              const gate = document.getElementById('fbAuthScreen');
+              const logoutBtn = document.getElementById('fbLogoutBtn');
+              if(user){
+                if(gate) gate.style.display = 'none';
+                if(logoutBtn) logoutBtn.style.display = 'block';
+              } else {
+                if(gate) gate.style.display = 'flex';
+                if(logoutBtn) logoutBtn.style.display = 'none';
+              }
+            });
+          }catch(e){ console.warn('Auth init err:', e); }
+        };
+        document.head.appendChild(_fb3);
+
         window.saveToFirebase = async function(){
           try{
             window._isSyncing = true;
@@ -1038,6 +1115,10 @@ if(!_IS_LOCAL){
   document.head.appendChild(_fb1);
 } else {
   console.log('📁 Mode local — Firebase désactivé, données en localStorage');
+  // Pas de Firebase en mode local (fichier ouvert directement) : impossible de s'authentifier,
+  // donc pas de verrou d'accès non plus — comportement inchangé par rapport à avant.
+  const gate = document.getElementById('fbAuthScreen');
+  if(gate) gate.style.display = 'none';
 }
 </script>
 
@@ -1504,9 +1585,6 @@ function calcWeekPresHours(uid, weekStart){
   const u=users.find(x=>x.id===uid)||{};
   const countAbs=!!u.countAbs;
   const countJF=!!u.countJF;
-  const hSemaine=getUserHSemaine(u)||HEURES_SEMAINE;
-  const dayH=hSemaine/5;        // ex: 38/5 = 7.6h/jour pour Aline (au lieu de 7h fixe)
-  const halfDayH=dayH/2;        // ex: 3.8h pour une demi-journée
   for(let i=0;i<5;i++){
     const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
     const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1522,8 +1600,8 @@ function calcWeekPresHours(uid, weekStart){
       // Jour École (stocké dans slot principal)
       const isEcole=pres.abs==='ecole'||pres.matin==='ecole'||pres.apmidi==='ecole';
       if(isFerie&&countJF){
-        if(pres.demi_j)total+=halfDayH*3600000;
-        else total+=dayH*3600000;
+        if(pres.demi_j)total+=3.5*3600000;
+        else total+=7*3600000;
       }
       // Absence (non JF, non École - école compte via heures réelles)
       else if(countAbs&&!isFerie&&!isEcole){
@@ -1531,10 +1609,10 @@ function calcWeekPresHours(uid, weekStart){
         const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.matin_abs);
         const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.apmidi_abs);
         if(pres.demi_j){
-          if(isAbsMatin)total+=halfDayH*3600000;
-          if(isAbsApmidi)total+=halfDayH*3600000;
+          if(isAbsMatin)total+=3.5*3600000;
+          if(isAbsApmidi)total+=3.5*3600000;
         } else if(isAbsDay){
-          total+=dayH*3600000;
+          total+=7*3600000;
         }
       }
     }
@@ -4516,5 +4594,10 @@ window._mpeReload=function(){
     </div>
   </div>
 </div>
+
+<!-- Petit bouton de déconnexion du compte Firebase (indépendant du reste de l'appli, pour ne
+     toucher à aucune autre partie de l'interface existante) -->
+<button id="fbLogoutBtn" onclick="window.__fbLogout()" title="Se déconnecter du compte"
+  style="display:none;position:fixed;bottom:10px;left:10px;z-index:99999;background:rgba(0,0,0,.55);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:10px;padding:5px 9px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">⏻ Déconnexion compte</button>
 </body>
 </html>
