@@ -263,7 +263,7 @@ select.field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
      pas connectée avec un vrai compte Firebase, cet écran couvre tout (z-index le plus haut de la
      page) et bloque l'accès — y compris à l'écran de sélection de profil. Une fois connectée, cet
      écran se cache et l'application continue de fonctionner exactement comme avant. -->
-<div id="fbAuthScreen" style="position:fixed;inset:0;z-index:100000;background:#17150e;display:flex;align-items:center;justify-content:center;padding:20px;font-family:'IBM Plex Sans',sans-serif">
+<div id="fbAuthScreen" style="position:fixed;inset:0;z-index:100000;background:#17150e;display:none;align-items:center;justify-content:center;padding:20px;font-family:'IBM Plex Sans',sans-serif">
   <div style="width:100%;max-width:320px;">
     <div style="text-align:center;margin-bottom:32px;">
       <div style="width:56px;height:56px;background:linear-gradient(135deg,#c94f0c,#e8621a);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;color:#fff;">MPE</div>
@@ -1025,13 +1025,13 @@ if(!_IS_LOCAL){
             window.__fbLogout = function(){ auth.signOut(); };
             auth.onAuthStateChanged(user => {
               const gate = document.getElementById('fbAuthScreen');
-              const logoutBtn = document.getElementById('fbLogoutBtn');
+              const toolbar = document.getElementById('fbToolbar');
               if(user){
                 if(gate) gate.style.display = 'none';
-                if(logoutBtn) logoutBtn.style.display = 'block';
+                if(toolbar) toolbar.style.display = 'flex';
               } else {
                 if(gate) gate.style.display = 'flex';
-                if(logoutBtn) logoutBtn.style.display = 'none';
+                if(toolbar) toolbar.style.display = 'none';
               }
             });
           }catch(e){ console.warn('Auth init err:', e); }
@@ -1048,7 +1048,10 @@ if(!_IS_LOCAL){
             const newTasks    = JSON.parse(localStorage.getItem('mpe4-tasks')     ||'[]');
 
             // GARDE-FOU RENFORCÉ : toujours vérifier Firebase avant d'écraser avec des données vides
-            // Une collection vide en local ne doit JAMAIS écraser Firebase si Firebase a des données
+            // OU sensiblement plus petites (cache local périmé — onglet resté ouvert plusieurs
+            // jours sans se recharger, cf. incident du 24/07 où 9 pointages ont disparu d'un coup
+            // sans que le tableau local soit vide pour autant).
+            const SEUIL_ECART_SUSPECT = 3;
             try {
               const snap = await DATA_REF.get();
               if(snap.exists){
@@ -1061,6 +1064,11 @@ if(!_IS_LOCAL){
                 if(fbProjects > 0  && newProjects.length === 0){ console.warn('⛔ Sauvegarde annulée — projects vides, Firebase en a', fbProjects); return; }
                 if(fbWbs      > 0  && newWbs.length      === 0){ console.warn('⛔ Sauvegarde annulée — wbs vides, Firebase en a', fbWbs);           return; }
                 if(fbTasks    > 0  && newTasks.length    === 0){ console.warn('⛔ Sauvegarde annulée — tasks vides, Firebase en a', fbTasks);        return; }
+                if(fbEntries - newEntries.length > SEUIL_ECART_SUSPECT){
+                  console.warn('⛔ Sauvegarde annulée —', (fbEntries-newEntries.length), 'pointages de moins que Firebase d\'un coup, cache local probablement périmé.');
+                  alert('⚠️ Sauvegarde interrompue : votre poste semble avoir une version périmée des pointages ('+newEntries.length+' au lieu de '+fbEntries+').\n\nRechargez la page (F5) avant de continuer, sinon des saisies récentes d\'autres collègues risquent d\'être supprimées.');
+                  return;
+                }
               }
             } catch(e){ console.warn('⚠️ Garde-fou Firebase check failed:', e.message); }
 
@@ -1585,6 +1593,9 @@ function calcWeekPresHours(uid, weekStart){
   const u=users.find(x=>x.id===uid)||{};
   const countAbs=!!u.countAbs;
   const countJF=!!u.countJF;
+  // Heures théoriques d'une journée pour CET utilisateur (ex: 38h/sem => 7,6h/j),
+  // au lieu d'un forfait fixe de 7h identique pour tout le monde.
+  const heuresJour=(getUserHSemaine(u)||HEURES_SEMAINE)/5;
   for(let i=0;i<5;i++){
     const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
     const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1600,8 +1611,8 @@ function calcWeekPresHours(uid, weekStart){
       // Jour École (stocké dans slot principal)
       const isEcole=pres.abs==='ecole'||pres.matin==='ecole'||pres.apmidi==='ecole';
       if(isFerie&&countJF){
-        if(pres.demi_j)total+=3.5*3600000;
-        else total+=7*3600000;
+        if(pres.demi_j)total+=(heuresJour/2)*3600000;
+        else total+=heuresJour*3600000;
       }
       // Absence (non JF, non École - école compte via heures réelles)
       else if(countAbs&&!isFerie&&!isEcole){
@@ -1609,10 +1620,10 @@ function calcWeekPresHours(uid, weekStart){
         const isAbsMatin=pres.matin_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.matin_abs);
         const isAbsApmidi=pres.apmidi_abs&&!['present','tt','dep','ecole','ferie',''].includes(pres.apmidi_abs);
         if(pres.demi_j){
-          if(isAbsMatin)total+=3.5*3600000;
-          if(isAbsApmidi)total+=3.5*3600000;
+          if(isAbsMatin)total+=(heuresJour/2)*3600000;
+          if(isAbsApmidi)total+=(heuresJour/2)*3600000;
         } else if(isAbsDay){
-          total+=7*3600000;
+          total+=heuresJour*3600000;
         }
       }
     }
@@ -4597,7 +4608,10 @@ window._mpeReload=function(){
 
 <!-- Petit bouton de déconnexion du compte Firebase (indépendant du reste de l'appli, pour ne
      toucher à aucune autre partie de l'interface existante) -->
-<button id="fbLogoutBtn" onclick="window.__fbLogout()" title="Se déconnecter du compte"
-  style="display:none;position:fixed;bottom:10px;left:10px;z-index:99999;background:rgba(0,0,0,.55);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:10px;padding:5px 9px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">⏻ Déconnexion compte</button>
+<div id="fbToolbar" style="display:none;position:fixed;bottom:10px;left:10px;z-index:99999;gap:8px;">
+  <a href="/" title="Retour à l'accueil" style="background:rgba(0,0,0,.55);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:10px;padding:5px 9px;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-decoration:none;">← Accueil</a>
+  <button id="fbLogoutBtn" onclick="window.__fbLogout()" title="Se déconnecter du compte"
+    style="background:rgba(0,0,0,.55);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:10px;padding:5px 9px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">⏻ Déconnexion compte</button>
+</div>
 </body>
 </html>
