@@ -4469,6 +4469,10 @@ window._mpeReload=function(){
 
     populateProjectSelects();
     populateLockUsers();
+    // Rafraîchit aussi l'onglet "Liste projets" (Projets > Liste projets) — sinon il ne se
+    // met à jour que si on change d'onglet ou clique un filtre, et peut rester figé sur une
+    // version périmée après une synchronisation Firebase (ex. projet ajouté par un collègue).
+    renderProjList();
 
     // Restaurer les selects du chrono si il tournait
     if(savedChronoSelects){
